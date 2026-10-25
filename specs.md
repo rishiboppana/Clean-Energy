@@ -310,12 +310,12 @@ Power and overhead *(all placeholders)*:
 
 | Quantity | Min | Typical | Max |
 |---|---|---|---|
-| Power fraction of TDP, training and fine-tuning | 0.5 | 0.7 | 0.9 |
-| Power fraction of TDP, inference | 0.3 | 0.5 | 0.7 |
-| Host overhead multiplier (CPU, memory, network) | 1.15 | 1.25 | 1.4 |
-| PUE | 1.1 | 1.3 | 1.6 |
+| Power fraction of TDP, training and fine-tuning | 0.6 | 0.85 | 0.95 |
+| Power fraction of TDP, inference *(placeholder)* | 0.3 | 0.5 | 0.7 |
+| Host overhead multiplier (CPU, fans, network) | 1.3 | 1.6 | 1.8 |
+| PUE | 1.09 | 1.2 | 1.56 |
 
-I could not retrieve a sourced PUE figure. The Uptime Institute's survey page says only that the global average has been stable since 2018, with the numbers behind a login.
+Sources *(checked, v2 of the constants)*: an 8-GPU H100 node (rated 10.2 kW, so 1.82x its 5.6 kW of GPU TDP) averaged about 76 percent of rating (about 7.75 kW) during training, peak about 8.4 kW (LBNL/Brookhaven node measurements). Typical 0.85 x 1.6 = 1.36 matches that average. PUE: Google fleet 1.09, AWS 1.15, Uptime Institute industry average 1.56 (all 2024); typical 1.2 is a judgement call. Per-hub GPU fleets in `data/hub_gpus.json` are **made up** (no public per-hub counts found); see the note in that file.
 
 The minimum and maximum energy use the all-low and all-high corners, so the range is wide on purpose.
 
@@ -325,8 +325,8 @@ Full fine-tune of a 7B dense model on 150 million tokens, 8 H100s.
 
 - FLOPs: 6 x 7e9 x 1.5e8 = 6.3e18.
 - Duration: 27 minutes (MFU 0.50), 33 minutes (0.40), 53 minutes (0.25).
-- Facility power, typical: 8 x 700 W x 0.7 x 1.25 x 1.3 = about 6.4 kW.
-- Energy: about 1.6 kWh minimum, 3.5 kWh typical, 10 kWh maximum.
+- Facility power, typical: 8 x 700 W x 0.85 x 1.6 x 1.2 = about 9.1 kW.
+- Energy: about 2.1 kWh minimum, 5.1 kWh typical, 13 kWh maximum.
 
 ### Sanity check
 

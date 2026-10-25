@@ -12,16 +12,16 @@ def run(**kw):
 
 
 class EstimatorTest(unittest.TestCase):
-    def test_worked_example(self):  # specs.md section 7: 7B full fine-tune, 150M tokens, 8 H100
+    def test_worked_example(self):  # 7B full fine-tune, 150M tokens, 8 H100; durations as specs.md section 7, power with the sourced constants
         r = run(job_type="finetune_full", n_params=7e9, tokens=1.5e8, gpu_type="H100", gpu_count=8)
         d, p, e = r["duration_h"], r["power_kw"], r["energy_kwh"]
         self.assertAlmostEqual(d["min"] * 60, 26.5, delta=0.5)
         self.assertAlmostEqual(d["typ"] * 60, 33.1, delta=0.5)
         self.assertAlmostEqual(d["max"] * 60, 53.0, delta=0.5)
-        self.assertAlmostEqual(p["typ"], 6.37, places=2)
-        self.assertAlmostEqual(e["min"], 1.6, delta=0.1)
-        self.assertAlmostEqual(e["typ"], 3.5, delta=0.1)
-        self.assertAlmostEqual(e["max"], 10, delta=0.2)
+        self.assertAlmostEqual(p["typ"], 9.139, places=2)  # 8 x 0.7 kW x 0.85 x 1.6 x 1.2
+        self.assertAlmostEqual(e["min"], 2.11, delta=0.05)
+        self.assertAlmostEqual(e["typ"], 5.05, delta=0.05)
+        self.assertAlmostEqual(e["max"], 13.2, delta=0.2)
         self.assertEqual((r["confidence"], r["assumptions"]), ("medium", ["interruptible=false", "allowed_grids=all"]))
 
     def test_llama2_gpu_hours(self):  # 184,320 A100-hours reported; formula should be within 5%
@@ -54,6 +54,43 @@ class EstimatorTest(unittest.TestCase):
             with self.assertRaises(EstimateError) as cm:
                 run(**kw)
             self.assertEqual(cm.exception.code, code)
+
+    def test_flags_more_gpus_than_any_hub(self):
+        r = run(job_type="gpu_hours", gpu_hours=1e7, gpu_count=1_000_000)
+        self.assertTrue(any("any hub" in w for w in r["warnings"]))
+
+
+class ApiTest(unittest.TestCase):
+    def test_concurrent_calls(self):
+        import json, threading, urllib.error, urllib.request
+        from concurrent.futures import ThreadPoolExecutor
+        from pipeline.estimator_api import make_server
+        srv = make_server(0)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        url = "http://127.0.0.1:%d/v1/jobs/estimate" % srv.server_address[1]
+
+        def post(body):
+            req = urllib.request.Request(url, json.dumps(body).encode(), {"Content-Type": "application/json"})
+            try:
+                with urllib.request.urlopen(req) as f:
+                    return f.status, json.load(f)
+            except urllib.error.HTTPError as e:
+                return e.code, json.load(e)
+
+        job = lambda i: {"job_type": "finetune_full", "n_params": 7e9, "tokens": 1e8 * (i % 5 + 1), "gpu_count": 8, "deadline_utc": "2099-01-01T00:00:00Z"}
+        try:
+            with ThreadPoolExecutor(32) as ex:
+                singles = list(ex.map(lambda i: post(job(i)), range(200)))
+                bad = ex.submit(post, {"job_type": "moe"}).result()
+            batch = post({"jobs": [job(i) for i in range(5)] + [{"job_type": "moe"}]})
+        finally:
+            srv.shutdown()
+        self.assertTrue(all(c == 200 for c, _ in singles))
+        for i, (_, r) in enumerate(singles):  # each caller got the answer for its own job
+            self.assertAlmostEqual(r["duration_h"]["typ"], singles[i % 5][1]["duration_h"]["typ"])
+        self.assertEqual(bad, (422, {"error": "unsupported_job_type", "detail": None}))
+        self.assertEqual(batch[0], 200)
+        self.assertEqual([x.get("error") for x in batch[1]["results"]], [None] * 5 + ["unsupported_job_type"])
 
 
 if __name__ == "__main__":

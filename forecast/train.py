@@ -1,4 +1,4 @@
-"""Train and evaluate one (grid, fuel) model: python -m forecast.train SRP SUN. Specs.md FB1, FB7-FB9."""
+"""Train and evaluate one (grid, fuel) model: python -m forecast.train SRP SUN [seasonal|time]. Specs.md FB1, FB7-FB9."""
 import json
 import os
 import sys
@@ -9,6 +9,7 @@ import pandas as pd
 import xgboost as xgb
 
 from forecast.features import build, WX
+from forecast.split import seasonal_block_split
 from pipeline import store
 
 FEATURES = [f"{c}_{s}" for c in WX for s in ("m", "s")] + [
@@ -62,36 +63,45 @@ def evaluate(df, mw, fuel):
     return rows
 
 
-def run(grid, fuel):
+def prepare(grid, fuel, split="seasonal"):
+    """-> (df, train, val, test). 'seasonal' mixes blocks across all seasons; 'time' is the forward-in-time split used first."""
     cfg = json.load(open(os.path.join(store.ROOT, "data", "sample_points.json")))["grids"][grid]
     lat = np.mean([p["lat"] for p in cfg["points"]])
     lon = np.mean([p["lon"] for p in cfg["points"]])
     df = build(grid, fuel, lat, lon)
+    if split == "seasonal":
+        sp = seasonal_block_split(df["issue"])
+        return df, df[sp == "train"], df[sp == "val"], df[sp == "test"]
     t = pd.to_datetime(df["issue"])
-    tr = df[t < pd.Timestamp(VAL_START) - GAP]
-    va = df[(t >= VAL_START) & (t < pd.Timestamp(HOLDOUT_START) - GAP)]
-    te = df[t >= HOLDOUT_START]
-    print(f"{grid} {fuel}: train {len(tr)} val {len(va)} holdout {len(te)} rows")
+    return (df, df[t < pd.Timestamp(VAL_START) - GAP],
+            df[(t >= VAL_START) & (t < pd.Timestamp(HOLDOUT_START) - GAP)], df[t >= HOLDOUT_START])
+
+
+def run(grid, fuel, params=None, split="seasonal", data=None):
+    df, tr, va, te = data or prepare(grid, fuel, split)
+    params = {**PARAMS, **(params or {})}
+    print(f"{grid} {fuel}: split={split} train {len(tr)} val {len(va)} test {len(te)} rows")
     dtr = xgb.QuantileDMatrix(tr[FEATURES], tr["label"])
     dva = xgb.QuantileDMatrix(va[FEATURES], va["label"], ref=dtr)
-    bst = xgb.train(PARAMS, dtr, 2000, evals=[(dva, "val")], early_stopping_rounds=50, verbose_eval=False)
+    bst = xgb.train(params, dtr, 3000, evals=[(dva, "val")], early_stopping_rounds=50, verbose_eval=False)
     k = fit_widening(predict(bst, va), va, fuel)
     raw = evaluate(te, to_mw(predict(bst, te), te, fuel), fuel)
     cal = evaluate(te, to_mw(widen(predict(bst, te), te, k), te, fuel), fuel)
     for r, c in zip(raw, cal):
         c["coverage_raw"] = r["coverage_p10_p90"]
-    metrics = {"grid": grid, "fuel": fuel, "best_iteration": bst.best_iteration, "widening_by_lead_bucket": k,
-               "rows": {"train": len(tr), "val": len(va), "holdout": len(te)}, "holdout": cal}
+    metrics = {"grid": grid, "fuel": fuel, "split": split, "best_iteration": bst.best_iteration, "val_pinball": bst.best_score,
+               "widening_by_lead_bucket": k, "rows": {"train": len(tr), "val": len(va), "test": len(te)}, "test": cal}
     version = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
     out = os.path.join(store.ROOT, "models", grid, fuel, version)
     os.makedirs(out)
     bst.save_model(os.path.join(out, "model.json"))
     json.dump(FEATURES, open(os.path.join(out, "features.json"), "w"))
+    json.dump({k_: (v.tolist() if hasattr(v, "tolist") else v) for k_, v in params.items()}, open(os.path.join(out, "params.json"), "w"), indent=1)
     json.dump(metrics, open(os.path.join(out, "metrics.json"), "w"), indent=1)
-    print(pd.DataFrame(metrics["holdout"]).round(3).to_string(index=False))
+    print(pd.DataFrame(metrics["test"]).round(3).to_string(index=False))
     print("saved", out)
     return metrics
 
 
 if __name__ == "__main__":
-    run(sys.argv[1], sys.argv[2])
+    run(sys.argv[1], sys.argv[2], split=sys.argv[3] if len(sys.argv) > 3 else "seasonal")

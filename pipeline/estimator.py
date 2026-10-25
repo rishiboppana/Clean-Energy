@@ -1,19 +1,27 @@
 """Job energy estimator (specs.md section 7, EE1-EE12). Pure function: job fields in, min/typ/max record out."""
+import json
 from datetime import datetime, timezone
+from pathlib import Path
 
 ESTIMATOR_VERSION = "1"
-CONSTANTS_VERSION = "1"
+CONSTANTS_VERSION = "2"
 
 GPUS = {"A100": {"tdp_w": 400, "peak_flops": 312e12, "mem_gb": 80}, "H100": {"tdp_w": 700, "peak_flops": 990e12, "mem_gb": 80}}
 
 # (min, typ, max). Duration uses the high MFU for the shortest time.
 MFU = {"pretrain": (0.25, 0.40, 0.55), "finetune": (0.25, 0.40, 0.50), "prefill": (0.30, 0.40, 0.50), "decode": (0.08, 0.10, 0.12)}
-POWER_FRAC = {"train": (0.5, 0.7, 0.9), "inference": (0.3, 0.5, 0.7)}  # placeholders
-HOST_OVERHEAD = (1.15, 1.25, 1.4)  # placeholder
-PUE = (1.1, 1.3, 1.6)  # placeholder
-SERVER_KW = (0.3, 0.5, 0.8)  # placeholder, non-ML jobs
-RESUME_OVERHEAD_H = 0.25  # placeholder, EE9
-GPU_COUNT_BY_PARAMS = [(2e9, 1), (15e9, 8), (80e9, 64), (float("inf"), 256)]  # placeholder, EE7
+# Node power, calibrated on LBNL/Brookhaven measurements of an 8-GPU H100 node (rated 10.2 kW): training averaged ~76% of
+# rating (~7.75 kW), peak ~8.4 kW, i.e. 1.38x and 1.5x the 5.6 kW of GPU TDP. Typical 0.85 x 1.6 = 1.36 matches the average.
+# The min/max corners are wider than the measurement on purpose. Inference fraction is still unsourced.
+POWER_FRAC = {"train": (0.6, 0.85, 0.95), "inference": (0.3, 0.5, 0.7)}
+HOST_OVERHEAD = (1.3, 1.6, 1.8)  # DGX H100 rated 10.2 kW / 5.6 kW GPU TDP = 1.82
+# PUE: Google fleet 1.09 (2024 TTM), AWS 1.15 (2024), Uptime Institute industry average 1.56 (2024). Typical 1.2 is my pick.
+PUE = (1.09, 1.2, 1.56)
+SERVER_KW = (0.3, 0.5, 0.8)  # unsourced guess, non-ML jobs
+RESUME_OVERHEAD_H = 0.25  # unsourced, EE9
+GPU_COUNT_BY_PARAMS = [(2e9, 1), (15e9, 8), (80e9, 64), (float("inf"), 256)]  # unsourced, EE7
+# Per-hub GPU fleet (made up, see the file's note). Used to flag jobs no hub could run.
+HUB_GPUS = json.loads((Path(__file__).parent.parent / "data" / "hub_gpus.json").read_text())["hubs"]
 
 FLOPS_PER_PARAM_TOKEN = {"pretrain": 6, "finetune_full": 6, "finetune_adapter": 4}
 # bytes of GPU memory per parameter: bf16 weights (2) vs weights + grads + Adam state (16)
@@ -34,11 +42,26 @@ def _tmm(lo, typ, hi):
     return {"min": lo, "typ": typ, "max": hi}
 
 
+def estimate_many(jobs, now=None):
+    """One result per job; a bad job yields {"error", "detail"} instead of failing the batch."""
+    out = []
+    for j in jobs:
+        try:
+            out.append(estimate(j, now))
+        except EstimateError as e:
+            out.append({"error": e.code, "detail": e.detail})
+        except (TypeError, ValueError, AttributeError):
+            out.append({"error": "validation_failed", "detail": None})
+    return out
+
+
 def estimate(job, now=None):
     """Raises EstimateError with the API error code (422 cases of POST /v1/jobs/estimate)."""
     jt = job.get("job_type")
     if jt in UNSUPPORTED or jt not in JOB_TYPES:
         raise EstimateError("unsupported_job_type")
+    if not job.get("deadline_utc"):
+        raise EstimateError("missing_fields", ["deadline_utc"])
     deadline = datetime.fromisoformat(job["deadline_utc"].replace("Z", "+00:00"))
     if deadline <= (now or datetime.now(timezone.utc)):
         raise EstimateError("deadline_in_past")
@@ -99,6 +122,8 @@ def estimate(job, now=None):
         pf = POWER_FRAC["inference" if jt == "inference" else "train"]
         power = _tmm(*(gpu_count * g["tdp_w"] / 1000 * f * h * p for f, h, p in zip(pf, HOST_OVERHEAD, PUE)))
 
+        if gpu_count > max((f["gpu_count"] for f in HUB_GPUS.values() if f["gpu_type"] == gpu_type), default=0):
+            warnings.append(f"more {gpu_type}s than any hub has; the scheduler will find no candidate")
         if job.get("n_params") and job["n_params"] * MEM_BYTES_PER_PARAM.get(jt, 2) > gpu_count * g["mem_gb"] * 1e9:
             warnings.append("weights probably do not fit in GPU memory")
 

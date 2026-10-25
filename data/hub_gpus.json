@@ -1,0 +1,45 @@
+{
+ "_note": "MADE UP. Web search found no per-hub GPU counts (only a tracker's 4.1K 'planned' Voltage Park Virginia site, not used). Derivation: flexible AI GPU pool = placeholder headroom_mw x 0.3 (flexible share, H5) / facility kW per GPU (TDP x 0.85 power fraction x 1.6 host overhead x 1.2 PUE), rounded to 1000. Replace with sourced numbers.",
+ "hubs": {
+  "nova": {
+   "gpu_type": "H100",
+   "gpu_count": 315000
+  },
+  "columbus": {
+   "gpu_type": "H100",
+   "gpu_count": 236000
+  },
+  "chicago": {
+   "gpu_type": "A100",
+   "gpu_count": 345000
+  },
+  "dfw": {
+   "gpu_type": "H100",
+   "gpu_count": 223000
+  },
+  "svalley": {
+   "gpu_type": "H100",
+   "gpu_count": 92000
+  },
+  "phoenix": {
+   "gpu_type": "H100",
+   "gpu_count": 158000
+  },
+  "iowa": {
+   "gpu_type": "A100",
+   "gpu_count": 207000
+  },
+  "atlanta": {
+   "gpu_type": "H100",
+   "gpu_count": 131000
+  },
+  "quincy": {
+   "gpu_type": "A100",
+   "gpu_count": 184000
+  },
+  "slc": {
+   "gpu_type": "H100",
+   "gpu_count": 92000
+  }
+ }
+}
