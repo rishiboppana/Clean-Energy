@@ -5,9 +5,10 @@
   --panel: rgba(16, 22, 40, 0.8);
   --text: #e6ebff;
   --muted: #8892b0;
-  --land: #141b30;
-  --land-stroke: #2a3558;
-  --node-stroke: #ffffff;
+  --land: #bfe5ab;
+  --water: #a8d8f0;
+  --land-stroke: #7fb36d;
+  --node-stroke: #1f3a2a;
   --node-min-r: 6;
   --node-max-r: 16;
 }

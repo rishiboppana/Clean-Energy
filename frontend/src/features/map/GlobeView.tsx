@@ -3,13 +3,19 @@ import Globe from 'react-globe.gl'
 import type { GlobeMethods } from 'react-globe.gl'
 import { NODES, nodeColor } from './nodes'
 import type { MapNode } from './nodes'
-import { states } from './states'
+import { otherCountries, states } from './states'
 
-// 1x1 dark pixel used as the globe surface, so no texture file or license is involved
+const token = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+const land = token('--land')
+const water = token('--water')
+const edge = token('--land-stroke')
+const polygons = [...otherCountries, ...states.features]
+
+// 1x1 pixel in the water color used as the globe surface, so no texture file or license is involved
 const SURFACE =
-  'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1" fill="#0a1020"/></svg>')
+  'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1" fill="${water}"/></svg>`)
 
-// FE3: opens framed on the US. FE24: dark surface with state outlines, no texture.
+// FE3: opens framed on the US. FE24: light blue surface, light green land, state outlines, no texture.
 export default function GlobeView() {
   const ref = useRef<GlobeMethods>(undefined)
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight })
@@ -32,15 +38,15 @@ export default function GlobeView() {
       backgroundColor="rgba(0,0,0,0)"
       globeImageUrl={SURFACE}
       showAtmosphere
-      polygonsData={states.features}
-      polygonCapColor={() => '#141b30'}
+      polygonsData={polygons}
+      polygonCapColor={() => land}
       polygonSideColor={() => 'rgba(0,0,0,0)'}
-      polygonStrokeColor={() => '#2a3558'}
+      polygonStrokeColor={() => edge}
       pointsData={NODES}
       pointLat={(d) => (d as MapNode).lat}
       pointLng={(d) => (d as MapNode).lon}
       pointColor={(d) => nodeColor((d as MapNode).share)}
-      pointRadius={(d) => 0.25 + 0.5 * (d as MapNode).share}
+      pointRadius={(d) => 0.4 + 0.4 * (d as MapNode).share}
       pointAltitude={0.02}
       pointLabel={(d) => (d as MapNode).label}
     />

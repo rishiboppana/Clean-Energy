@@ -23,4 +23,14 @@ export const NODES: MapNode[] = HUBS.map((h) => {
   }
 })
 
-export const nodeColor = (share: number) => `hsl(${120 * share} 80% 45%)`
+// Hex, not hsl(): three.js (globe) cannot parse CSS hsl() strings. Hue 0 (red) to 120 (green).
+export const nodeColor = (share: number) => {
+  const h = 120 * share
+  const [s, l] = [0.8, 0.45]
+  const f = (n: number) => {
+    const k = (n + h / 30) % 12
+    const c = l - s * Math.min(l, 1 - l) * Math.max(-1, Math.min(k - 3, 9 - k, 1))
+    return Math.round(255 * c).toString(16).padStart(2, '0')
+  }
+  return `#${f(0)}${f(8)}${f(4)}`
+}
