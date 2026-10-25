@@ -49,3 +49,16 @@ CREATE TABLE IF NOT EXISTS ingest_runs (
   newest_ts timestamptz,
   error text
 );
+
+-- Weather per grid sample point (FM2). Wide, not long: ~27M rows long vs ~1M wide for three grids.
+-- `product` says which lead time the numbers represent (FB3). Backfill rows have no issue time.
+CREATE TABLE IF NOT EXISTS weather (
+  grid_id text NOT NULL REFERENCES grids(id),
+  point text NOT NULL,
+  product text NOT NULL,                 -- historical_forecast (1-12 h) | previous_day1 | previous_day2
+  valid_ts_utc timestamptz NOT NULL,
+  ghi double precision, dni double precision, cloud double precision,
+  temp double precision, wind100 double precision, wdir100 double precision,
+  fetched_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (grid_id, point, product, valid_ts_utc)
+);

@@ -27,3 +27,22 @@ def ingest_eia(grid_id, eia_code, hours_back):
     except Exception as e:
         store.run_finished(run, "failed", error=str(e)[:500])
         raise
+
+
+def ingest_weather(grid_id, start, end):
+    """Backfill weather for one grid's sample points, all three lead products. start/end are 'YYYY-MM-DD'."""
+    import json, os
+    from pipeline import weather
+    cfg = json.load(open(os.path.join(store.ROOT, "data", "sample_points.json")))
+    run = store.run_started("open-meteo", grid_id)
+    try:
+        written = 0
+        for p in cfg["grids"][grid_id]["points"]:
+            for product in weather.PRODUCTS:
+                h = weather.extract(product, p["lat"], p["lon"], start, end, cfg["model"])
+                written += store.write_weather(weather.normalize(grid_id, p["id"], product, h))
+        store.run_finished(run, "ok", written)
+        return written
+    except Exception as e:
+        store.run_finished(run, "failed", error=str(e)[:500])
+        raise

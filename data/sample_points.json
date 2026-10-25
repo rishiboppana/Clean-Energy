@@ -1,0 +1,19 @@
+{
+  "_note": "Hand-picked weather sample points near each grid's solar and wind generation (specs.md FM2, FB4). Coordinates are approximate placeholders, not plant locations. Fuels are the forecast targets (FB11 build order).",
+  "model": "gfs_seamless",
+  "grids": {
+    "SRP":  {"fuels": ["SUN"], "points": [
+      {"id": "phoenix",   "lat": 33.42, "lon": -111.84},
+      {"id": "gila_bend", "lat": 32.95, "lon": -112.72},
+      {"id": "coolidge",  "lat": 32.98, "lon": -111.52}]},
+    "PACE": {"fuels": ["SUN", "WND"], "points": [
+      {"id": "medicine_bow", "lat": 41.90, "lon": -106.20},
+      {"id": "glenrock",     "lat": 42.86, "lon": -105.87},
+      {"id": "milford",      "lat": 38.40, "lon": -113.01},
+      {"id": "cedar_city",   "lat": 37.68, "lon": -113.06}]},
+    "SOCO": {"fuels": ["SUN"], "points": [
+      {"id": "albany_ga",  "lat": 31.58, "lon": -84.16},
+      {"id": "macon",      "lat": 32.84, "lon": -83.63},
+      {"id": "montgomery", "lat": 32.38, "lon": -86.30}]}
+  }
+}

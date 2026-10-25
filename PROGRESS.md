@@ -21,12 +21,16 @@ Spec: [specs.md](specs.md). Frontend is built one feature at a time (section 13)
 |---|---|---|
 | D1 | Hub registry: `data/hubs.json` (8 grids, 10 hubs), frontend reads it | Done |
 | D2 | EIA probe: `pipeline/probe_eia.py` -> `data/probe_results.json` | Done (EIA only) |
-| D3 | Store: `schema.sql`, Postgres, idempotent writes | Next |
-| D4 | EIA ingestion + backfill | Todo |
-| D5 | Direct feeds (CAISO, ERCOT, MISO), probe for those | Todo |
+| D3 | Store: Postgres in Docker Compose, `db/02_schema.sql`, `pipeline/store.py`, idempotent writes | Done |
+| D4 | EIA ingestion through Airflow: `eia_hourly` DAG (verified, re-run writes 0 new rows) and `eia_backfill` (2 years, running) | Done, backfill in progress |
+| D5 | Direct feeds (CAISO, ERCOT, MISO), probe for those | Next |
+| D6 | Surplus rule (S3), F floor, CAISO calibration | Todo |
+| D7 | Job energy estimator: `pipeline/estimator.py` (pure function, min/typ/max, assumptions, warnings), tests reproduce the worked example and Llama 2 check | Done (EE1-EE12; constants are placeholders) |
 
 Probe findings: all 8 EIA codes valid; demand ~1-2 h old with operator forecast (DF) on every grid; fuel mix ~19-22 h old on every grid (so all are "slow" on EIA alone, direct feeds matter for CAISO/ERCOT/MISO); GCPD reports hydro only (not modeled, FM10); extra fuel codes BAT, GEO, PS, SNB, OES need a mapping (DS4). Still open: EIA hour-start vs hour-end convention.
 
 Known gaps: dashboard "same at the scrubbed hour" waits for the scrubber (6); quality outlines (FE7) show on flat only; selection/time not yet shared between views; globe dashed arcs unverified.
 
-Run: `cd frontend && npm install && npm run dev`
+Data stack: `docker compose up -d`, then Airflow UI at http://localhost:8080 (user `admin`, password: `docker compose exec airflow cat /opt/airflow/standalone_admin_password.txt`). Tests: `python3 -m unittest tests.test_eia`.
+
+Run frontend: `cd frontend && npm install && npm run dev`

@@ -71,3 +71,13 @@ def run_finished(run_id, status, rows_written=None, newest_ts=None, error=None):
     with connect() as c, c.cursor() as cur:
         cur.execute("UPDATE ingest_runs SET status=%s, rows_written=%s, newest_ts=%s, error=%s WHERE run_id=%s",
                     (status, rows_written, newest_ts, error, run_id))
+
+
+def write_weather(rows):
+    """Backfill-safe: an existing (grid, point, product, hour) is left alone. Returns rows inserted."""
+    if not rows:
+        return 0
+    sql = """INSERT INTO weather (grid_id, point, product, valid_ts_utc, ghi, dni, cloud, temp, wind100, wdir100)
+             VALUES %s ON CONFLICT DO NOTHING RETURNING 1"""
+    with connect() as c, c.cursor() as cur:
+        return len(execute_values(cur, sql, rows, template="(%s, %s, %s, %s::timestamptz, %s, %s, %s, %s, %s, %s)", page_size=2000, fetch=True))
