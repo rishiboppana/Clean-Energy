@@ -12,3 +12,11 @@
   --node-min-r: 6;
   --node-max-r: 16;
 }
+:root {
+  --panel-width: 340px;
+  --q-measured: #4ade80;
+  --q-proxy: #fbbf24;
+  --q-estimate: #60a5fa;
+  --q-simulated: #c084fc;
+  --q-assumption: #94a3b8;
+}

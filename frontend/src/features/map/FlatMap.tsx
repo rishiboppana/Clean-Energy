@@ -1,6 +1,7 @@
 import { geoAlbersUsa, geoPath } from 'd3-geo'
 import type { Quality } from '../../data/hubs'
 import { NODES, nodeColor } from './nodes'
+import type { MapNode } from './nodes'
 import { states } from './states'
 
 const W = 975
@@ -16,7 +17,7 @@ const OUTLINE: Record<Quality, string | undefined> = {
   simulated: '1 2',
 }
 
-export function FlatMap() {
+export function FlatMap({ onSelect }: { onSelect: (n: MapNode) => void }) {
   return (
     <svg className="map" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="US map of modeled data center hubs">
       {states.features.map((s) => (
@@ -30,6 +31,8 @@ export function FlatMap() {
             key={n.id}
             className="node"
             tabIndex={0}
+            onClick={() => onSelect(n)}
+            onKeyDown={(e) => e.key === 'Enter' && onSelect(n)}
             cx={xy[0]}
             cy={xy[1]}
             r={6 + 10 * n.share} // FE6: size also grows with absorbable MW

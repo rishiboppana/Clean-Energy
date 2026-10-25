@@ -16,7 +16,7 @@ const SURFACE =
   'data:image/svg+xml,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1" fill="${water}"/></svg>`)
 
 // FE3: opens framed on the US. FE24: light blue surface, light green land, state outlines, no texture.
-export default function GlobeView() {
+export default function GlobeView({ onSelect }: { onSelect: (n: MapNode) => void }) {
   const ref = useRef<GlobeMethods>(undefined)
   const [size, setSize] = useState({ w: window.innerWidth, h: window.innerHeight })
 
@@ -48,6 +48,7 @@ export default function GlobeView() {
       pointColor={(d) => nodeColor((d as MapNode).share)}
       pointRadius={(d) => 0.4 + 0.4 * (d as MapNode).share}
       pointAltitude={0.02}
+      onPointClick={(d) => onSelect(d as MapNode)}
       pointLabel={(d) => (d as MapNode).label}
     />
   )
