@@ -1,0 +1,278 @@
+{
+  "probed_at_utc": "2026-10-25T00:50:52+00:00",
+  "grids": [
+    {
+      "grid": "PJM",
+      "eia_code": "PJM",
+      "demand": {
+        "period": "2026-10-24T23",
+        "age_h": 1.8
+      },
+      "demand_forecast": {
+        "period": "2026-10-25T04",
+        "age_h": -3.2
+      },
+      "interchange": {
+        "period": "2026-10-24T03",
+        "age_h": 21.8
+      },
+      "fuel_types": [
+        "COL",
+        "NG",
+        "NUC",
+        "OIL",
+        "OTH",
+        "SUN",
+        "WAT",
+        "WND"
+      ],
+      "fuel_newest_period": "2026-10-24T03",
+      "fuel_age_h": 21.8,
+      "has_solar_wind": [
+        "SUN",
+        "WND"
+      ],
+      "modeled": true,
+      "tier_observed": "slow",
+      "tier_in_registry": "slow"
+    },
+    {
+      "grid": "ERCOT",
+      "eia_code": "ERCO",
+      "demand": {
+        "period": "2026-10-25T00",
+        "age_h": 0.8
+      },
+      "demand_forecast": {
+        "period": "2026-10-25T05",
+        "age_h": -4.2
+      },
+      "interchange": {
+        "period": "2026-10-24T04",
+        "age_h": 20.8
+      },
+      "fuel_types": [
+        "BAT",
+        "COL",
+        "NG",
+        "NUC",
+        "OTH",
+        "SUN",
+        "WAT",
+        "WND"
+      ],
+      "fuel_newest_period": "2026-10-24T04",
+      "fuel_age_h": 20.8,
+      "has_solar_wind": [
+        "SUN",
+        "WND"
+      ],
+      "modeled": true,
+      "tier_observed": "slow",
+      "tier_in_registry": "fresh"
+    },
+    {
+      "grid": "CAISO",
+      "eia_code": "CISO",
+      "demand": {
+        "period": "2026-10-24T23",
+        "age_h": 1.8
+      },
+      "demand_forecast": {
+        "period": "2026-10-25T07",
+        "age_h": -6.2
+      },
+      "interchange": {
+        "period": "2026-10-24T06",
+        "age_h": 18.8
+      },
+      "fuel_types": [
+        "COL",
+        "GEO",
+        "NG",
+        "NUC",
+        "OIL",
+        "OTH",
+        "SUN",
+        "WAT",
+        "WND"
+      ],
+      "fuel_newest_period": "2026-10-24T06",
+      "fuel_age_h": 18.8,
+      "has_solar_wind": [
+        "SUN",
+        "WND"
+      ],
+      "modeled": true,
+      "tier_observed": "slow",
+      "tier_in_registry": "fresh"
+    },
+    {
+      "grid": "SRP",
+      "eia_code": "SRP",
+      "demand": {
+        "period": "2026-10-25T00",
+        "age_h": 0.8
+      },
+      "demand_forecast": {
+        "period": "2026-10-25T07",
+        "age_h": -6.2
+      },
+      "interchange": {
+        "period": "2026-10-24T06",
+        "age_h": 18.8
+      },
+      "fuel_types": [
+        "BAT",
+        "COL",
+        "NG",
+        "NUC",
+        "SNB",
+        "SUN",
+        "WAT",
+        "WND"
+      ],
+      "fuel_newest_period": "2026-10-24T06",
+      "fuel_age_h": 18.8,
+      "has_solar_wind": [
+        "SUN",
+        "WND"
+      ],
+      "modeled": true,
+      "tier_observed": "slow",
+      "tier_in_registry": "slow"
+    },
+    {
+      "grid": "MISO",
+      "eia_code": "MISO",
+      "demand": {
+        "period": "2026-10-24T23",
+        "age_h": 1.8
+      },
+      "demand_forecast": {
+        "period": "2026-10-25T05",
+        "age_h": -4.2
+      },
+      "interchange": {
+        "period": "2026-10-24T04",
+        "age_h": 20.8
+      },
+      "fuel_types": [
+        "BAT",
+        "COL",
+        "NG",
+        "NUC",
+        "OTH",
+        "SUN",
+        "WAT",
+        "WND"
+      ],
+      "fuel_newest_period": "2026-10-24T04",
+      "fuel_age_h": 20.8,
+      "has_solar_wind": [
+        "SUN",
+        "WND"
+      ],
+      "modeled": true,
+      "tier_observed": "slow",
+      "tier_in_registry": "fresh"
+    },
+    {
+      "grid": "SOCO",
+      "eia_code": "SOCO",
+      "demand": {
+        "period": "2026-10-25T00",
+        "age_h": 0.8
+      },
+      "demand_forecast": {
+        "period": "2026-10-25T05",
+        "age_h": -4.2
+      },
+      "interchange": {
+        "period": "2026-10-24T04",
+        "age_h": 20.8
+      },
+      "fuel_types": [
+        "BAT",
+        "COL",
+        "NG",
+        "NUC",
+        "OES",
+        "OIL",
+        "OTH",
+        "PS",
+        "SNB",
+        "SUN",
+        "WAT",
+        "WND"
+      ],
+      "fuel_newest_period": "2026-10-24T04",
+      "fuel_age_h": 20.8,
+      "has_solar_wind": [
+        "SUN",
+        "WND"
+      ],
+      "modeled": true,
+      "tier_observed": "slow",
+      "tier_in_registry": "slow"
+    },
+    {
+      "grid": "GCPD",
+      "eia_code": "GCPD",
+      "demand": {
+        "period": "2026-10-25T00",
+        "age_h": 0.8
+      },
+      "demand_forecast": {
+        "period": "2026-10-25T07",
+        "age_h": -6.2
+      },
+      "interchange": {
+        "period": "2026-10-24T06",
+        "age_h": 18.8
+      },
+      "fuel_types": [
+        "WAT"
+      ],
+      "fuel_newest_period": "2026-10-24T06",
+      "fuel_age_h": 18.8,
+      "has_solar_wind": [],
+      "modeled": false,
+      "tier_observed": "slow",
+      "tier_in_registry": "slow"
+    },
+    {
+      "grid": "PACE",
+      "eia_code": "PACE",
+      "demand": {
+        "period": "2026-10-25T00",
+        "age_h": 0.8
+      },
+      "demand_forecast": {
+        "period": "2026-10-25T06",
+        "age_h": -5.2
+      },
+      "interchange": {
+        "period": "2026-10-24T05",
+        "age_h": 19.8
+      },
+      "fuel_types": [
+        "COL",
+        "NG",
+        "OTH",
+        "SUN",
+        "WAT",
+        "WND"
+      ],
+      "fuel_newest_period": "2026-10-24T05",
+      "fuel_age_h": 19.8,
+      "has_solar_wind": [
+        "SUN",
+        "WND"
+      ],
+      "modeled": true,
+      "tier_observed": "slow",
+      "tier_in_registry": "slow"
+    }
+  ]
+}

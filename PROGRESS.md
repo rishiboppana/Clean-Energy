@@ -15,6 +15,18 @@ Spec: [specs.md](specs.md). Frontend is built one feature at a time (section 13)
 | 8 | Arc animation | Todo | FE12 |
 | 9 | Starfield, reduce-motion, colorblind palette, states (loading, stale, API down) | Todo | FE1, FE6, FE30 |
 
+## Data (build plan, specs.md section 16)
+
+| # | Step | Status |
+|---|---|---|
+| D1 | Hub registry: `data/hubs.json` (8 grids, 10 hubs), frontend reads it | Done |
+| D2 | EIA probe: `pipeline/probe_eia.py` -> `data/probe_results.json` | Done (EIA only) |
+| D3 | Store: `schema.sql`, Postgres, idempotent writes | Next |
+| D4 | EIA ingestion + backfill | Todo |
+| D5 | Direct feeds (CAISO, ERCOT, MISO), probe for those | Todo |
+
+Probe findings: all 8 EIA codes valid; demand ~1-2 h old with operator forecast (DF) on every grid; fuel mix ~19-22 h old on every grid (so all are "slow" on EIA alone, direct feeds matter for CAISO/ERCOT/MISO); GCPD reports hydro only (not modeled, FM10); extra fuel codes BAT, GEO, PS, SNB, OES need a mapping (DS4). Still open: EIA hour-start vs hour-end convention.
+
 Known gaps: dashboard "same at the scrubbed hour" waits for the scrubber (6); quality outlines (FE7) show on flat only; selection/time not yet shared between views; globe dashed arcs unverified.
 
 Run: `cd frontend && npm install && npm run dev`
