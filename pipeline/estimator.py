@@ -63,6 +63,8 @@ def estimate(job, now=None):
     if not job.get("deadline_utc"):
         raise EstimateError("missing_fields", ["deadline_utc"])
     deadline = datetime.fromisoformat(job["deadline_utc"].replace("Z", "+00:00"))
+    if deadline.tzinfo is None:  # a naive time from the parser or a form means UTC
+        deadline = deadline.replace(tzinfo=timezone.utc)
     if deadline <= (now or datetime.now(timezone.utc)):
         raise EstimateError("deadline_in_past")
     direct = job.get("gpu_hours") is not None

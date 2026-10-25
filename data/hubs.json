@@ -1,5 +1,5 @@
 {
-  "_note": "Hubs are modeled clusters of data centers, not any company's sites (specs.md section 3). Headroom values are placeholder assumptions. EIA codes are verified by pipeline/probe_eia.py.",
+  "_note": "Hubs are modeled clusters of data centers, not any company's sites (specs.md section 3). Headroom values are placeholder assumptions. EIA codes are verified by pipeline/probe_eia.py. Hub aliases are lowercase words the chat matches to find a user's location (pipeline/location.py).",
   "grids": [
     {"id": "PJM",   "name": "PJM",   "eia_code": "PJM",  "type": "ISO/RTO",     "tier": "slow",  "official_forecast_source": "PJM Data Miner (unverified lead)"},
     {"id": "ERCOT", "name": "ERCOT", "eia_code": "ERCO", "type": "ISO",         "tier": "fresh", "official_forecast_source": "ERCOT solar/wind reports (unverified lead)"},
@@ -11,15 +11,15 @@
     {"id": "PACE",  "name": "PACE",  "eia_code": "PACE", "type": "utility BA",  "tier": "slow",  "official_forecast_source": null}
   ],
   "hubs": [
-    {"id": "nova",     "name": "Northern Virginia",        "serving_utility": "Dominion Energy",                 "grid": "PJM",   "lat": 39.04, "lon": -77.49,  "load_anchor_mw": null, "headroom_mw": 1200, "latency_region": "east"},
-    {"id": "columbus", "name": "Greater Columbus",         "serving_utility": "AEP Ohio",                        "grid": "PJM",   "lat": 39.96, "lon": -83.0,   "load_anchor_mw": null, "headroom_mw": 900,  "latency_region": "east"},
-    {"id": "chicago",  "name": "Greater Chicago",          "serving_utility": "ComEd",                           "grid": "PJM",   "lat": 41.88, "lon": -87.63,  "load_anchor_mw": null, "headroom_mw": 750,  "latency_region": "central"},
-    {"id": "dfw",      "name": "Dallas-Fort Worth",        "serving_utility": null,                              "grid": "ERCOT", "lat": 32.78, "lon": -96.8,   "load_anchor_mw": null, "headroom_mw": 850,  "latency_region": "central"},
-    {"id": "svalley",  "name": "Silicon Valley",           "serving_utility": "Silicon Valley Power / PG&E",     "grid": "CAISO", "lat": 37.35, "lon": -121.96, "load_anchor_mw": null, "headroom_mw": 350,  "latency_region": "west"},
-    {"id": "phoenix",  "name": "Phoenix-Mesa",             "serving_utility": "Salt River Project",              "grid": "SRP",   "lat": 33.42, "lon": -111.84, "load_anchor_mw": null, "headroom_mw": 600,  "latency_region": "mountain"},
-    {"id": "iowa",     "name": "Central Iowa",             "serving_utility": "MidAmerican Energy",              "grid": "MISO",  "lat": 41.66, "lon": -93.47,  "load_anchor_mw": 506,  "headroom_mw": 450,  "latency_region": "central"},
-    {"id": "atlanta",  "name": "Atlanta Metro",            "serving_utility": "Georgia Power",                   "grid": "SOCO",  "lat": 33.75, "lon": -84.75,  "load_anchor_mw": 980,  "headroom_mw": 500,  "latency_region": "east"},
-    {"id": "quincy",   "name": "Quincy / Columbia Basin",  "serving_utility": "Grant County PUD",                "grid": "GCPD",  "lat": 47.23, "lon": -119.85, "load_anchor_mw": 1013, "headroom_mw": 400,  "latency_region": "west"},
-    {"id": "slc",      "name": "Salt Lake Valley",         "serving_utility": "Rocky Mountain Power",            "grid": "PACE",  "lat": 40.76, "lon": -111.89, "load_anchor_mw": null, "headroom_mw": 350,  "latency_region": "mountain"}
+    {"id": "nova", "aliases": ["northern virginia", "ashburn", "loudoun", "virginia"],     "name": "Northern Virginia",        "serving_utility": "Dominion Energy",                 "grid": "PJM",   "lat": 39.04, "lon": -77.49,  "load_anchor_mw": null, "headroom_mw": 1200, "latency_region": "east"},
+    {"id": "columbus", "aliases": ["columbus", "ohio"], "name": "Greater Columbus",         "serving_utility": "AEP Ohio",                        "grid": "PJM",   "lat": 39.96, "lon": -83.0,   "load_anchor_mw": null, "headroom_mw": 900,  "latency_region": "east"},
+    {"id": "chicago", "aliases": ["chicago", "illinois"],  "name": "Greater Chicago",          "serving_utility": "ComEd",                           "grid": "PJM",   "lat": 41.88, "lon": -87.63,  "load_anchor_mw": null, "headroom_mw": 750,  "latency_region": "central"},
+    {"id": "dfw", "aliases": ["dallas", "fort worth", "dfw", "texas"],      "name": "Dallas-Fort Worth",        "serving_utility": null,                              "grid": "ERCOT", "lat": 32.78, "lon": -96.8,   "load_anchor_mw": null, "headroom_mw": 850,  "latency_region": "central"},
+    {"id": "svalley", "aliases": ["silicon valley", "santa clara", "san jose", "bay area"],  "name": "Silicon Valley",           "serving_utility": "Silicon Valley Power / PG&E",     "grid": "CAISO", "lat": 37.35, "lon": -121.96, "load_anchor_mw": null, "headroom_mw": 350,  "latency_region": "west"},
+    {"id": "phoenix", "aliases": ["phoenix", "mesa", "arizona"],  "name": "Phoenix-Mesa",             "serving_utility": "Salt River Project",              "grid": "SRP",   "lat": 33.42, "lon": -111.84, "load_anchor_mw": null, "headroom_mw": 600,  "latency_region": "mountain"},
+    {"id": "iowa", "aliases": ["central iowa", "des moines", "altoona", "iowa"],     "name": "Central Iowa",             "serving_utility": "MidAmerican Energy",              "grid": "MISO",  "lat": 41.66, "lon": -93.47,  "load_anchor_mw": 506,  "headroom_mw": 450,  "latency_region": "central"},
+    {"id": "atlanta", "aliases": ["atlanta", "douglas county", "georgia"],  "name": "Atlanta Metro",            "serving_utility": "Georgia Power",                   "grid": "SOCO",  "lat": 33.75, "lon": -84.75,  "load_anchor_mw": 980,  "headroom_mw": 500,  "latency_region": "east"},
+    {"id": "quincy", "aliases": ["quincy", "columbia basin", "grant county"],   "name": "Quincy / Columbia Basin",  "serving_utility": "Grant County PUD",                "grid": "GCPD",  "lat": 47.23, "lon": -119.85, "load_anchor_mw": 1013, "headroom_mw": 400,  "latency_region": "west"},
+    {"id": "slc", "aliases": ["salt lake", "utah"],      "name": "Salt Lake Valley",         "serving_utility": "Rocky Mountain Power",            "grid": "PACE",  "lat": 40.76, "lon": -111.89, "load_anchor_mw": null, "headroom_mw": 350,  "latency_region": "mountain"}
   ]
 }

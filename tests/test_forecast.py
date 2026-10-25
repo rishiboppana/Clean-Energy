@@ -25,5 +25,19 @@ class WideningTest(unittest.TestCase):
         self.assertAlmostEqual(((y >= w[:, 0]) & (y <= w[:, 2])).mean(), 0.8, delta=0.02)
 
 
+class SplitTest(unittest.TestCase):
+    def test_every_season_in_every_set_and_boundaries_buffered(self):
+        from forecast.split import SEASON, seasonal_block_split
+        issue = pd.date_range("2024-12-25", "2026-10-24", freq="6H")
+        sp = seasonal_block_split(issue)
+        season = pd.Series(issue.month).map(lambda m: SEASON.get(m, 3)).values
+        for name in ("train", "val", "test"):
+            self.assertEqual(set(season[sp == name]), {0, 1, 2, 3})
+        kept = pd.Series(sp)
+        for i in range(1, len(sp)):  # no train row sits next to a test row without the dropped buffer between
+            if sp[i] is not None and sp[i - 1] is not None and sp[i] != sp[i - 1]:
+                self.fail("adjacent rows in different sets: buffer missing")
+
+
 if __name__ == "__main__":
     unittest.main()

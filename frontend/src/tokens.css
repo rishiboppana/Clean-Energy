@@ -20,3 +20,13 @@
   --q-simulated: #c084fc;
   --q-assumption: #94a3b8;
 }
+:root {
+  --chat-width: 420px;
+  --chat-bg: #ffffff;
+  --chat-text: #1a2233;
+  --chat-muted: #5b6577;
+  --chat-bot: #eef2f8;
+  --chat-user: #2563eb;
+  --chat-border: #d5dbe7;
+  --chat-font: 16px;
+}
