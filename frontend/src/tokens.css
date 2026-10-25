@@ -1,0 +1,13 @@
+/* FE28: every tweakable visual value lives here */
+:root {
+  --bg: #05070f;
+  --bg-glow: #121a33;
+  --panel: rgba(16, 22, 40, 0.8);
+  --text: #e6ebff;
+  --muted: #8892b0;
+  --land: #141b30;
+  --land-stroke: #2a3558;
+  --node-stroke: #ffffff;
+  --node-min-r: 6;
+  --node-max-r: 16;
+}

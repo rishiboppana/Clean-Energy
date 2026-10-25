@@ -1,0 +1,16 @@
+@import "./tokens.css";
+
+html, body, #root { height: 100%; margin: 0; }
+body {
+  background: radial-gradient(ellipse at 50% 30%, var(--bg-glow), var(--bg) 70%);
+  color: var(--text);
+  font-family: system-ui, sans-serif;
+}
+.map { width: 100%; height: 100%; display: block; }
+.map .state { fill: var(--land); stroke: var(--land-stroke); stroke-width: 0.5; }
+.map .node { cursor: pointer; stroke: var(--node-stroke); stroke-width: 2; }
+.map .node:focus-visible { outline: none; stroke-width: 4; }
+.footnote { position: fixed; bottom: 8px; left: 16px; font-size: 12px; color: var(--muted); }
+.toggle { position: fixed; top: 12px; right: 16px; z-index: 1; display: flex; gap: 4px; }
+.toggle button { background: var(--panel); color: var(--text); border: 1px solid var(--land-stroke); padding: 6px 14px; border-radius: 6px; cursor: pointer; }
+.toggle button[aria-pressed="true"] { background: var(--land-stroke); }
