@@ -42,6 +42,15 @@ def widen(p, df, k):
     return np.clip(np.stack([p[:, 1] - (p[:, 1] - p[:, 0]) * f, p[:, 1], p[:, 1] + (p[:, 2] - p[:, 1]) * f], axis=1), 0, 1.5)
 
 
+def load_model(grid, fuel):
+    """-> (booster, widening factors, version) for the model named in models/<grid>/<fuel>/current.txt."""
+    d = os.path.join(store.ROOT, "models", grid, fuel)
+    version = open(os.path.join(d, "current.txt")).read().strip()
+    bst = xgb.Booster()
+    bst.load_model(os.path.join(d, version, "model.json"))
+    return bst, json.load(open(os.path.join(d, version, "metrics.json")))["widening_by_lead_bucket"], version
+
+
 def to_mw(p, df, fuel):
     if fuel == "SUN":
         p = p * (df["elev"].values > 0)[:, None]  # no sun, no solar (FB7)
@@ -73,20 +82,25 @@ def prepare(grid, fuel, split="seasonal"):
         sp = seasonal_block_split(df["issue"])
         return df, df[sp == "train"], df[sp == "val"], df[sp == "test"]
     t = pd.to_datetime(df["issue"])
+    if split == "final":  # production model: everything but the newest 90 days trains, the newest 90 days stop early and calibrate the band
+        v0 = t.max() - pd.Timedelta(days=90)
+        return df, df[t < v0 - GAP], df[t >= v0], df.iloc[:0]
     return (df, df[t < pd.Timestamp(VAL_START) - GAP],
             df[(t >= VAL_START) & (t < pd.Timestamp(HOLDOUT_START) - GAP)], df[t >= HOLDOUT_START])
 
 
 def run(grid, fuel, params=None, split="seasonal", data=None):
     df, tr, va, te = data or prepare(grid, fuel, split)
+    if params is None:  # promoted params for this model, if any (data/model_params.json)
+        params = json.load(open(os.path.join(store.ROOT, "data", "model_params.json"))).get(f"{grid}_{fuel}") if split == "final" else None
     params = {**PARAMS, **(params or {})}
     print(f"{grid} {fuel}: split={split} train {len(tr)} val {len(va)} test {len(te)} rows")
     dtr = xgb.QuantileDMatrix(tr[FEATURES], tr["label"])
     dva = xgb.QuantileDMatrix(va[FEATURES], va["label"], ref=dtr)
     bst = xgb.train(params, dtr, 3000, evals=[(dva, "val")], early_stopping_rounds=50, verbose_eval=False)
     k = fit_widening(predict(bst, va), va, fuel)
-    raw = evaluate(te, to_mw(predict(bst, te), te, fuel), fuel)
-    cal = evaluate(te, to_mw(widen(predict(bst, te), te, k), te, fuel), fuel)
+    raw = evaluate(te, to_mw(predict(bst, te), te, fuel), fuel) if len(te) else []
+    cal = evaluate(te, to_mw(widen(predict(bst, te), te, k), te, fuel), fuel) if len(te) else []
     for r, c in zip(raw, cal):
         c["coverage_raw"] = r["coverage_p10_p90"]
     metrics = {"grid": grid, "fuel": fuel, "split": split, "best_iteration": bst.best_iteration, "val_pinball": bst.best_score,
@@ -98,7 +112,10 @@ def run(grid, fuel, params=None, split="seasonal", data=None):
     json.dump(FEATURES, open(os.path.join(out, "features.json"), "w"))
     json.dump({k_: (v.tolist() if hasattr(v, "tolist") else v) for k_, v in params.items()}, open(os.path.join(out, "params.json"), "w"), indent=1)
     json.dump(metrics, open(os.path.join(out, "metrics.json"), "w"), indent=1)
-    print(pd.DataFrame(metrics["test"]).round(3).to_string(index=False))
+    if cal:
+        print(pd.DataFrame(metrics["test"]).round(3).to_string(index=False))
+    if split == "final":  # serving reads this pointer
+        open(os.path.join(store.ROOT, "models", grid, fuel, "current.txt"), "w").write(version)
     print("saved", out)
     return metrics
 

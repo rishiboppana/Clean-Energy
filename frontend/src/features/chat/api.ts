@@ -2,6 +2,16 @@ export interface ChatReply {
   reply: string
   estimate: unknown | null
   home_hub: string | null
+  suggestions: string[]
+  guarded: boolean // true when a guardrail answered without the LLM
+}
+
+export class ChatError extends Error {
+  status: number
+  constructor(status: number) {
+    super(String(status))
+    this.status = status
+  }
 }
 
 // POST /v1/chat (proxied to the estimator service by vite.config.ts). Throws if the service or the LLM is unavailable.
@@ -11,6 +21,6 @@ export async function sendChat(sessionId: string, text: string, homeHub: string 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ session_id: sessionId, text, home_hub: homeHub }),
   })
-  if (!r.ok) throw new Error(String(r.status))
+  if (!r.ok) throw new ChatError(r.status)
   return r.json()
 }

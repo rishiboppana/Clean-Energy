@@ -46,15 +46,16 @@ def sun_elevation(times, lat, lon):
     return np.degrees(np.arcsin(np.sin(la) * np.sin(decl) + np.cos(la) * np.cos(decl) * np.cos(ha)))
 
 
-def build(grid, fuel, lat, lon, lag=LAG_H):
-    y = load_y(grid, fuel)
+def series_context(y):
+    """Hourly actuals plus the as-of-time helpers (trailing p98 cap, 24 h mean) the rows are built from."""
     full = y.reindex(pd.date_range(y.index.min(), y.index.max(), freq="H"))
-    cap_at = full.rolling(60 * 24, min_periods=30 * 24).quantile(0.98)  # trailing 60 days (FB2)
-    mean24 = full.rolling(24, min_periods=12).mean()
-    wx, wx_names = load_wx(grid)
+    return full, full.rolling(60 * 24, min_periods=30 * 24).quantile(0.98), full.rolling(24, min_periods=12).mean()  # cap: trailing 60 days (FB2)
 
-    first = max(y.index.min(), min(w.index.min() for w in wx.values()))
-    T = pd.date_range(first.ceil("6H"), y.index.max(), freq="6H")
+
+def rows(ctx, wx, wx_names, T, lat, lon, lag):
+    """One row per issue time in T and horizon 1-48. Everything is as of the issue time minus `lag` hours (FB6).
+    `wx` maps weather product -> hourly frame; training passes the three lead products, serving passes live forecasts for all three."""
+    full, cap_at, mean24 = ctx
     Ti = np.repeat(T.values, len(HORIZONS))
     h = np.tile(HORIZONS, len(T))
     tgt = Ti + h.astype("timedelta64[h]")
@@ -98,4 +99,13 @@ def build(grid, fuel, lat, lon, lag=LAG_H):
             last_share=last / cap, same_share=same / cap, mean24_share=at(mean24, known) / cap,
             issue=Ti, target=tgt, cap=cap, y_mw=at(full, tgt), b_persist=last, b_same=same, b_typical=typ)
         df["label"] = df["y_mw"] / df["cap"]
+    return df
+
+
+def build(grid, fuel, lat, lon, lag=LAG_H):
+    y = load_y(grid, fuel)
+    wx, wx_names = load_wx(grid)
+    first = max(y.index.min(), min(w.index.min() for w in wx.values()))
+    T = pd.date_range(first.ceil("6H"), y.index.max(), freq="6H")
+    df = rows(series_context(y), wx, wx_names, T, lat, lon, lag)
     return df[df["label"].notna() & (df["cap"] > 0)].reset_index(drop=True)

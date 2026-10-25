@@ -1,0 +1,15 @@
+{
+ "_note": "Params per grid_fuel for retraining. Empty means forecast/train.py PARAMS. Tuned only where it beat untuned on the forward holdout (2026-04-25 on): PACE WND.",
+ "SRP_SUN": {},
+ "SOCO_SUN": {},
+ "PACE_SUN": {},
+ "PACE_WND": {
+  "max_depth": 4,
+  "learning_rate": 0.15894853765170008,
+  "min_child_weight": 9.83079195165502,
+  "subsample": 0.6045331390167772,
+  "colsample_bytree": 0.9942386097564448,
+  "reg_lambda": 0.13030082128897943,
+  "gamma": 0.9853200265747921
+ }
+}

@@ -39,5 +39,24 @@ class SplitTest(unittest.TestCase):
                 self.fail("adjacent rows in different sets: buffer missing")
 
 
+class LeakageTest(unittest.TestCase):
+    def test_features_ignore_actuals_newer_than_issue_minus_lag(self):
+        from forecast import features as F
+        idx = pd.date_range("2025-01-01", periods=24 * 120, freq="H")
+        rng = np.random.default_rng(1)
+        y = pd.Series(rng.uniform(0, 100, len(idx)), index=idx)
+        names = [f"{c}_{s}" for c in F.WX for s in ("m", "s")]
+        wx = {p: pd.DataFrame(rng.uniform(0, 1, (len(idx) + 100, len(names))), columns=names,
+                              index=pd.date_range("2025-01-01", periods=len(idx) + 100, freq="H")) for p in F.PRODUCT_BY_BUCKET}
+        T = pd.DatetimeIndex(["2025-04-10 06:00"])
+        lag = 36
+        a = F.rows(F.series_context(y), wx, names, T, 33.0, -112.0, lag)
+        y2 = y.copy()
+        y2[y2.index > T[0] - pd.Timedelta(hours=lag)] = 999.0  # rewrite everything the model must not see
+        b = F.rows(F.series_context(y2), wx, names, T, 33.0, -112.0, lag)
+        cols = ["last_share", "same_share", "mean24_share", "cap"]
+        pd.testing.assert_frame_equal(a[cols], b[cols])
+
+
 if __name__ == "__main__":
     unittest.main()

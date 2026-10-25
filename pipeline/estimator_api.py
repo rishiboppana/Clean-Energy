@@ -4,15 +4,17 @@ Run: python3 -m pipeline.estimator_api [port]
 POST /v1/jobs/parse      {"text": "..."} -> {"fields", "needs_input", "parser": "llm"|"form", ...}; never fails because the LLM is down
 POST /v1/jobs/estimate   body = job fields           -> record, or 422 {"error", "detail"}
                          body = {"jobs": [...]}      -> {"results": [...]} (200, per-job errors inline)
-POST /v1/chat            {"session_id", "text", "home_hub"?} -> {"reply", "job", "needs_input", "estimate", "home_hub"}; 503 chat_unavailable
+POST /v1/chat            {"session_id", "text", "home_hub"?} -> {"reply", "job", "needs_input", "estimate", "home_hub", "suggestions", "guarded"}; 429 rate_limited; 503 chat_unavailable
                          without the agent environment (run with .venv-agent/bin/python to enable it)
 GET  /v1/hubs/gpus       -> per-hub GPU type and count
 """
 import json
 import sys
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from .location import HUB_NAMES, detect_hub
+from . import guardrails
+from .location import HUB_NAMES, detect_hub, strip_location
 from .estimator import HUB_GPUS, EstimateError, estimate, estimate_many
 from .parser import ParseError, parse
 
@@ -21,6 +23,8 @@ MAX_BATCH = 5000
 
 
 _agent = None
+_sessions = {}  # session_id -> {"job", "needs", "asks", "times"}; in memory, oldest dropped past MAX_SESSIONS
+MAX_SESSIONS = 1000
 
 
 def _chat(body):
@@ -31,19 +35,42 @@ def _chat(body):
         return 422, {"error": "validation_failed", "detail": "session_id (1-64 chars) and text (1-2000 chars) are required"}
     if home is not None and home not in HUB_NAMES:
         return 422, {"error": "validation_failed", "detail": "unknown home_hub"}
+    st = _sessions.setdefault(sid, {"job": {}, "needs": [], "asks": 0, "times": []})
+    while len(_sessions) > MAX_SESSIONS:
+        _sessions.pop(next(iter(_sessions)))
+    now = time.time()
+    st["times"] = [t for t in st["times"] if now - t < 3600]
+    if len(st["times"]) >= guardrails.MAX_MSGS_PER_HOUR:
+        return 429, {"error": "rate_limited"}
+    st["times"].append(now)
+
+    found = detect_hub(text)
+    if found and found != home:
+        home = found
+    refusal = guardrails.check(text, bool(st["job"]) or st["asks"] > 0 or found is not None)  # a place or a conversation in progress is on-topic
+    if refusal:  # no LLM call
+        return 200, {"reply": refusal, "job": st["job"], "needs_input": st["needs"], "estimate": None, "home_hub": home,
+                     "suggestions": guardrails.suggestions(st["needs"], False), "guarded": True}
+    loc_note = f"Location set to {HUB_NAMES[home]}.\n" if found and found != body.get("home_hub") else ""
+    job_text = strip_location(text) if found else text  # the location is handled in code, the LLM only reads the job
+    if not job_text:
+        reply = loc_note + "Now describe the job you want to run."
+        return 200, {"reply": reply, "job": st["job"], "needs_input": st["needs"], "estimate": None, "home_hub": home,
+                     "suggestions": guardrails.suggestions(st["needs"] or ["job_type"], False), "guarded": False}
+    text_in, assumed = guardrails.apply_defaults(job_text, st["needs"], st["asks"])
     try:
         if _agent is None:
             from .agent import make_agent
             _agent = make_agent()
         from .agent import chat
-        out = chat(_agent, sid, text)
+        out = chat(_agent, sid, text_in)
     except Exception:
         return 503, {"error": "chat_unavailable"}
-    found = detect_hub(text)
-    if found and found != home:
-        home = found
-        out["reply"] = f"Location set to {HUB_NAMES[home]}.\n" + out["reply"]
-    return 200, {**out, "home_hub": home}
+    st["job"], st["needs"] = out["job"], out["needs_input"]
+    st["asks"] = 0 if out["estimate"] or not out["needs_input"] else st["asks"] + 1
+    prefix = loc_note + (guardrails.assumed_note(assumed) if assumed else "")
+    out["reply"] = prefix + out["reply"]
+    return 200, {**out, "home_hub": home, "suggestions": guardrails.suggestions(out["needs_input"], bool(out["estimate"])), "guarded": False}
 
 
 class Handler(BaseHTTPRequestHandler):

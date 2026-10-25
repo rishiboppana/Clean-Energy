@@ -62,3 +62,27 @@ CREATE TABLE IF NOT EXISTS weather (
   fetched_at timestamptz NOT NULL DEFAULT now(),
   PRIMARY KEY (grid_id, point, product, valid_ts_utc)
 );
+
+-- Live weather forecasts, archived every fetch with issue time (FM8) so training can later use what we actually had.
+CREATE TABLE IF NOT EXISTS weather_forecasts (
+  grid_id text NOT NULL REFERENCES grids(id),
+  point text NOT NULL,
+  issued_at timestamptz NOT NULL,
+  valid_ts_utc timestamptz NOT NULL,
+  ghi double precision, dni double precision, cloud double precision,
+  temp double precision, wind100 double precision, wdir100 double precision,
+  PRIMARY KEY (grid_id, point, issued_at, valid_ts_utc)
+);
+
+-- Forecasts from any provider, kept for scoring (specs.md section 5). Append-only: each issue is new rows.
+CREATE TABLE IF NOT EXISTS forecasts (
+  grid_id text NOT NULL REFERENCES grids(id),
+  metric text NOT NULL,
+  issued_at timestamptz NOT NULL,
+  target_ts_utc timestamptz NOT NULL,
+  value double precision NOT NULL,       -- p50, MW
+  p10 double precision, p90 double precision,
+  provider text NOT NULL,                -- xgboost | persistence | official
+  model_version text,
+  PRIMARY KEY (grid_id, metric, issued_at, target_ts_utc, provider)
+);

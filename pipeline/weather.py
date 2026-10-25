@@ -33,3 +33,19 @@ def normalize(grid_id, point, product, hourly):
             continue
         out.append((grid_id, point, product, t + ":00+00", *vals))
     return out
+
+
+LIVE = "https://api.open-meteo.com/v1/forecast"
+
+
+def extract_live(lat, lon, model):
+    """The current forecast for the next 72 h at one point, in the same columns as `extract`."""
+    params = {"latitude": lat, "longitude": lon, "forecast_days": 3, "timezone": "UTC", "wind_speed_unit": "ms",
+              "models": model, "hourly": ",".join(VARS)}
+    try:
+        r = requests.get(LIVE, params=params, timeout=60)
+        r.raise_for_status()
+    except requests.RequestException as e:
+        raise RuntimeError(f"Open-Meteo live failed ({type(e).__name__}, status {getattr(e.response, 'status_code', None)})") from None
+    h = r.json()["hourly"]
+    return {"time": h["time"], **{col: h[v] for v, col in VARS.items()}}

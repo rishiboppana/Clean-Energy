@@ -13,3 +13,14 @@ def detect_hub(text):
     low = text.lower()
     hits = [hid for hid, pats in _PATTERNS.items() if any(p.search(low) for p in pats)]
     return hits[0] if len(hits) == 1 else None
+
+
+_ALIASES = sorted((a for h in _HUBS for a in h["aliases"]), key=len, reverse=True)  # longest first: "central iowa" before "iowa"
+_STRIP = re.compile(
+    r"(?:\b(?:i['’]?m|i am|we['’]?re|we are)\s+)?(?:\b(?:based\s+in|located\s+in|in|near|at|from|around)\s+)?(?:the\s+)?\b(?:"
+    + "|".join(re.escape(a) for a in _ALIASES) + r")\b(?:\s+(?:city|area|metro))?", re.I)
+
+
+def strip_location(text):
+    """Remove the location phrase so the LLM only sees the job (it sometimes drops the job when a place is mentioned)."""
+    return re.sub(r"\s+", " ", _STRIP.sub(" ", text)).strip(" ,.;:-")

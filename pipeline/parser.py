@@ -265,8 +265,13 @@ def parse(text, now=None, llm=llm_complete, known=None):
         fields, dropped = validate(_llm_fields(text, now, llm, known))
         bad = ungrounded(fields, text) + off_type(fields)
         fields, dropped, parser = {k: v for k, v in fields.items() if k not in bad}, dropped + bad, "llm"
-        if d := form_parse(text, now).get("deadline_utc"):
+        rx = form_parse(text, now)
+        if d := rx.get("deadline_utc"):
             fields["deadline_utc"] = d  # the LLM gets date arithmetic wrong; the regex wins when it can read the deadline
+        for k, v in rx.items():  # the LLM sometimes omits a field; the regex only reads words that are in the text
+            if k not in fields and k not in bad:
+                fields[k] = v
+        fields, _ = validate(fields)  # same range checks as the LLM's fields
     except Exception:  # any LLM failure falls back (LL4)
         fields, dropped = validate(form_parse(text, now))
         parser = "form"

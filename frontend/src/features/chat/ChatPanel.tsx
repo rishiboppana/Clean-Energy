@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { HUBS } from '../../data/hubs'
 import { Badge } from '../dashboard/Badge'
-import { sendChat } from './api'
+import { ChatError, sendChat } from './api'
 
 interface Msg {
   who: 'user' | 'bot'
   text: string
   estimate?: boolean
+  guarded?: boolean
 }
 
 const HELLO: Msg = {
@@ -28,6 +29,7 @@ export function ChatPanel() {
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
   const [home, setHome] = useState('')
+  const [chips, setChips] = useState(EXAMPLES)
   const session = useRef(crypto.randomUUID())
   const end = useRef<HTMLDivElement>(null)
 
@@ -49,12 +51,28 @@ export function ChatPanel() {
     try {
       const r = await sendChat(session.current, t, home || null)
       if (r.home_hub) setHome(r.home_hub)
-      setMsgs((m) => [...m, { who: 'bot', text: r.reply, estimate: !!r.estimate }])
-    } catch {
-      setMsgs((m) => [...m, { who: 'bot', text: 'The job box is unavailable right now (the estimator service or the LLM is down). Please try again shortly.' }])
+      setMsgs((m) => [...m, { who: 'bot', text: r.reply, estimate: !!r.estimate, guarded: r.guarded }])
+      setChips(r.suggestions)
+    } catch (err) {
+      const limited = err instanceof ChatError && err.status === 429
+      setMsgs((m) => [...m, {
+        who: 'bot',
+        guarded: true,
+        text: limited
+          ? "You've sent a lot of messages in the last hour. Please wait a bit, or start a new job."
+          : 'The job box is unavailable right now (the estimator service or the LLM is down). Please try again shortly.',
+      }])
+      setChips([])
     } finally {
       setBusy(false)
     }
+  }
+
+  function reset() {
+    session.current = crypto.randomUUID()
+    setMsgs([HELLO])
+    setChips(EXAMPLES)
+    setText('')
   }
 
   if (!open) {
@@ -65,7 +83,10 @@ export function ChatPanel() {
     <aside className="chat" aria-label="Job box chat">
       <header>
         <h2>Job box</h2>
-        <button onClick={() => setOpen(false)} aria-label="Collapse chat">×</button>
+        <span>
+          <button onClick={reset} aria-label="Start a new job" title="Start a new job">↻</button>
+          <button onClick={() => setOpen(false)} aria-label="Collapse chat">×</button>
+        </span>
       </header>
       <label className="loc">
         My location
@@ -76,14 +97,14 @@ export function ChatPanel() {
       </label>
       <div className="msgs" aria-live="polite">
         {msgs.map((m, i) => (
-          <div key={i} className={`msg ${m.who}`}>
+          <div key={i} className={`msg ${m.who}${m.guarded ? ' guard' : ''}`}>
             {m.text}
             {m.estimate && <div><Badge q="estimate" /></div>}
           </div>
         ))}
-        {msgs.length === 1 && (
+        {!busy && chips.length > 0 && (
           <div className="chips">
-            {EXAMPLES.map((ex) => <button key={ex} type="button" onClick={() => send(ex)}>{ex}</button>)}
+            {chips.map((c) => <button key={c} type="button" onClick={() => send(c)}>{c}</button>)}
           </div>
         )}
         {busy && <div className="msg bot typing" aria-label="Thinking"><i /><i /><i /></div>}

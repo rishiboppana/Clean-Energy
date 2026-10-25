@@ -81,3 +81,23 @@ def write_weather(rows):
              VALUES %s ON CONFLICT DO NOTHING RETURNING 1"""
     with connect() as c, c.cursor() as cur:
         return len(execute_values(cur, sql, rows, template="(%s, %s, %s, %s::timestamptz, %s, %s, %s, %s, %s, %s)", page_size=2000, fetch=True))
+
+
+def write_weather_forecast(rows):
+    """rows: (grid_id, point, issued_at, valid_ts_utc, ghi, dni, cloud, temp, wind100, wdir100)."""
+    if not rows:
+        return 0
+    sql = """INSERT INTO weather_forecasts (grid_id, point, issued_at, valid_ts_utc, ghi, dni, cloud, temp, wind100, wdir100)
+             VALUES %s ON CONFLICT DO NOTHING RETURNING 1"""
+    with connect() as c, c.cursor() as cur:
+        return len(execute_values(cur, sql, rows, template="(%s, %s, %s::timestamptz, %s::timestamptz, %s, %s, %s, %s, %s, %s)", fetch=True))
+
+
+def write_forecasts(rows):
+    """rows: (grid_id, metric, issued_at, target_ts_utc, value, p10, p90, provider, model_version). Re-running an issue is a no-op."""
+    if not rows:
+        return 0
+    sql = """INSERT INTO forecasts (grid_id, metric, issued_at, target_ts_utc, value, p10, p90, provider, model_version)
+             VALUES %s ON CONFLICT DO NOTHING RETURNING 1"""
+    with connect() as c, c.cursor() as cur:
+        return len(execute_values(cur, sql, rows, template="(%s, %s, %s::timestamptz, %s::timestamptz, %s, %s, %s, %s, %s)", fetch=True))
