@@ -38,6 +38,19 @@ class ParserTest(unittest.TestCase):
         self.assertEqual(sorted(r["dropped"]), ["deadline_utc", "gpu_count", "gpu_type", "interruptible"])
         self.assertEqual(r["needs_input"], ["deadline_utc"])
 
+    def test_stated_gpu_hours_is_direct_mode(self):  # the LLM called this "pretrain"
+        out = json.dumps({"job_type": "pretrain", "gpu_hours": 64, "gpu_type": "H100"})
+        r = parse("I need 64 GPU-hours of training done within 2 days", NOW, fake(out))
+        self.assertEqual((r["fields"]["job_type"], r["fields"]["gpu_hours"], r["needs_input"]), ("gpu_hours", 64.0, []))
+        out = json.dumps({"job_type": "gpu_hours", "gpu_hours": 64, "gpu_count": 64})  # "64 GPU-hours" is not 64 GPUs
+        self.assertNotIn("gpu_count", parse("I need 64 GPU-hours of training done within 2 days", NOW, fake(out))["fields"])
+
+    def test_token_count_is_not_a_model_size(self):
+        out = json.dumps({"job_type": "finetune_full", "n_params": 1.5e8, "tokens": 1.5e8})
+        r = parse("150 million tokens", NOW, fake(out), known={"job_type": "finetune_full", "n_params": 7e9})
+        self.assertEqual(r["fields"].get("tokens"), 1.5e8)
+        self.assertNotIn("n_params", r["fields"])
+
     def test_bad_json_retries_once_then_form(self):
         calls = []
         def llm(s, t):

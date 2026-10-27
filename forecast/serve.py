@@ -13,23 +13,20 @@ from pipeline import store, weather
 MAX_STALE_H = 72  # newest actual older than this: no forecast from us, the scheduler falls back (FM9, not built yet)
 
 
-def _live_weather(grid, cfg, issued):
-    """Fetch every sample point, archive the raw hourly rows, return the point-aggregated frame the model expects."""
-    frames, archive = [], []
-    for p in cfg["points"]:
-        h = weather.extract_live(p["lat"], p["lon"], cfg["model"])
+def _live_weather(grid, points, model, issued):
+    """Fetch every sample point, archive the raw hourly rows, return the capacity-weighted frame the model expects."""
+    parts, archive = [], []
+    for p in points:
+        h = weather.extract_live(p["lat"], p["lon"], model)
         df = pd.DataFrame({c: h[c] for c in weather.VARS.values()}, index=pd.to_datetime(h["time"]))
-        frames.append(df)
         archive += [(grid, p["id"], issued.isoformat(), t.isoformat() + "+00", *[None if pd.isna(v) else float(v) for v in r])
                     for t, r in zip(df.index, df.values)]
+        parts.append(df.rename_axis("ts").reset_index().assign(product="live", w=p["weight"]))
     store.write_weather_forecast(archive)
-    cat = pd.concat(frames, keys=range(len(frames)))
-    g = cat.groupby(level=1)
-    agg = pd.concat([g.mean().add_suffix("_m"), g.std(ddof=1).fillna(0).add_suffix("_s")], axis=1)
-    return agg[F_NAMES]
+    return F.align(F.aggregate_weather(pd.concat(parts)).set_index("ts")[F_NAMES])
 
 
-F_NAMES = [f"{c}_{s}" for c in F.WX for s in ("m", "s")]
+F_NAMES = [f"{c}_{s}" for c in F.WXF for s in ("m", "s")]
 
 
 def forecast_grid(grid, now=None):
@@ -37,13 +34,11 @@ def forecast_grid(grid, now=None):
     issued = pd.Timestamp(now).tz_convert("UTC").tz_localize(None).floor("H")
     root = os.path.join(store.ROOT, "data", "sample_points.json")
     cfg = json.load(open(root))
-    gcfg = {**cfg["grids"][grid], "model": cfg["model"]}
-    lat = float(np.mean([p["lat"] for p in gcfg["points"]]))
-    lon = float(np.mean([p["lon"] for p in gcfg["points"]]))
-    wx_agg = _live_weather(grid, gcfg, issued)
-    wx = {p: wx_agg for p in F.PRODUCT_BY_BUCKET}  # one live run serves every lead bucket; the bucket stays a feature
     written = 0
-    for fuel in gcfg["fuels"]:
+    for fuel, fcfg in cfg["grids"][grid].items():
+        lat, lon = F.centroid(fcfg["points"])
+        wx_agg = _live_weather(grid, fcfg["points"], cfg["model"], issued)
+        wx = {p: wx_agg for p in F.PRODUCT_BY_BUCKET}  # one live run serves every lead bucket; the bucket stays a feature
         y = F.load_y(grid, fuel)
         age_h = int((issued - y.index.max()) / pd.Timedelta(hours=1))
         if age_h > MAX_STALE_H:

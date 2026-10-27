@@ -1,13 +1,19 @@
 import { lazy, Suspense, useState } from 'react'
 import { FlatMap } from './FlatMap'
-import type { MapNode } from './nodes'
+import type { MapNode, Move } from './nodes'
 
 const GlobeView = lazy(() => import('./GlobeView')) // three.js is heavy: load only when needed
 type View = 'globe' | 'flat'
 const KEY = 'gridflex.view'
 
-// FE2: toggle between views, choice remembered. Selection/time will live in shared state later.
-export function MapView({ onSelect }: { onSelect: (n: MapNode) => void }) {
+// FE2: toggle between views, choice remembered. Selection is owned by App, so it survives a view switch.
+interface Props {
+  selectedId: string | null
+  onSelect: (n: MapNode | null) => void
+  move: Move | null
+}
+
+export function MapView({ selectedId, onSelect, move }: Props) {
   const [view, setView] = useState<View>(() => {
     try {
       return localStorage.getItem(KEY) === 'flat' ? 'flat' : 'globe'
@@ -34,10 +40,10 @@ export function MapView({ onSelect }: { onSelect: (n: MapNode) => void }) {
         ))}
       </div>
       {view === 'flat' ? (
-        <FlatMap onSelect={onSelect} />
+        <FlatMap selectedId={selectedId} onSelect={onSelect} move={move} />
       ) : (
         <Suspense fallback={<p className="footnote">Loading globe…</p>}>
-          <GlobeView onSelect={onSelect} />
+          <GlobeView selectedId={selectedId} onSelect={onSelect} move={move} />
         </Suspense>
       )}
     </>

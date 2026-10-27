@@ -6,7 +6,7 @@ body {
   color: var(--text);
   font-family: system-ui, sans-serif;
 }
-.map { width: 100%; height: 100%; display: block; background: var(--water); }
+.map { width: 100%; height: 100%; display: block; background: var(--water); box-sizing: border-box; padding: 0 calc(var(--chat-width) + 24px) 0 calc(var(--panel-width) + 24px); } /* keep the map between the two panels */
 .map .state { fill: var(--land); stroke: var(--land-stroke); stroke-width: 0.5; }
 .map .node { cursor: pointer; stroke: var(--node-stroke); stroke-width: 2; }
 .map .node:focus-visible { outline: none; stroke-width: 4; }
@@ -72,3 +72,20 @@ body {
 @keyframes pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes bounce { 0%, 80%, 100% { transform: translateY(0); opacity: .5; } 40% { transform: translateY(-5px); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .chat * { animation: none !important; transition: none !important; } }
+
+.map .ring { fill: none; stroke: var(--node-stroke); stroke-width: 2.5; stroke-dasharray: 4 3; pointer-events: none; }
+.panel .back { background: none; border: 0; color: var(--muted); cursor: pointer; padding: 0; margin-bottom: 6px; font: inherit; }
+.panel .back:hover { color: var(--text); }
+.panel .state { font-size: 11px; padding: 1px 8px; border-radius: 8px; font-weight: 600; }
+.state.over { background: #166534; color: #bbf7d0; } .state.normal { background: #334155; color: #cbd5e1; }
+.gauge { height: 12px; background: rgba(255,255,255,.1); border-radius: 6px; overflow: hidden; } .gauge i { display: block; height: 100%; background: #60a5fa; transition: width .3s; }
+.joblist { list-style: none; margin: 0; padding: 0; } .joblist li { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,.08); font-size: 12px; }
+.jobstate { font-size: 10px; padding: 1px 6px; border-radius: 8px; background: #334155; } .jobstate.running { background: #166534; }
+.panel .primary { margin-top: 14px; width: 100%; padding: 8px; border: 0; border-radius: 8px; background: #2563eb; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.panel .primary:disabled { background: #334155; cursor: default; }
+.sky-note { position: fixed; bottom: 8px; left: calc(var(--panel-width) + 28px); right: calc(var(--chat-width) + 28px); text-align: center; z-index: 1; margin: 0; font-size: 11px; color: var(--muted); pointer-events: none; }
+
+/* Job-move arrow on the flat map: dots flow from the user's hub to the assigned hub (FE12) */
+.map .arc { fill: none; stroke: var(--arc); stroke-width: 3.5; stroke-linecap: round; stroke-dasharray: 0.5 9; animation: flow 1s linear infinite; pointer-events: none; }
+@keyframes flow { to { stroke-dashoffset: -9.5; } }
+@media (prefers-reduced-motion: reduce) { .map .arc { animation: none; } }

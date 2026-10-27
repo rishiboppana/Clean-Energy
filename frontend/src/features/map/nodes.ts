@@ -34,3 +34,9 @@ export const nodeColor = (share: number) => {
   }
   return `#${f(0)}${f(8)}${f(4)}`
 }
+
+// A job being moved from the user's hub to the hub chosen for it; drawn as a dotted arrow on both maps.
+export interface Move {
+  from: MapNode
+  to: MapNode
+}

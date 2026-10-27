@@ -1,6 +1,8 @@
+import type { Estimate } from './placement'
+
 export interface ChatReply {
   reply: string
-  estimate: unknown | null
+  estimate: Estimate | null
   home_hub: string | null
   suggestions: string[]
   guarded: boolean // true when a guardrail answered without the LLM

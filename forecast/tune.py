@@ -22,9 +22,9 @@ SPACE = {
 
 
 def trial(config, data):
-    tr, va = data
-    dtr = xgb.QuantileDMatrix(tr[T.FEATURES], tr["label"])
-    dva = xgb.QuantileDMatrix(va[T.FEATURES], va["label"], ref=dtr)
+    tr, va, cols = data
+    dtr = xgb.QuantileDMatrix(tr[cols], tr["label"])
+    dva = xgb.QuantileDMatrix(va[cols], va["label"], ref=dtr)
     bst = xgb.train({**T.PARAMS, **config, "nthread": 2}, dtr, 3000, evals=[(dva, "val")], early_stopping_rounds=50, verbose_eval=False)
     train.report({"val_pinball": bst.best_score, "best_iteration": bst.best_iteration})
 
@@ -35,7 +35,7 @@ def main(grid, fuel, trials=30):
     ray.init(num_cpus=10, include_dashboard=False, logging_level="ERROR")
     out = os.path.join(store.ROOT, "models", "_tune", f"{grid}_{fuel}")
     tuner = tune.Tuner(
-        tune.with_parameters(trial, data=(tr, va)),
+        tune.with_parameters(trial, data=(tr, va, T.feats(fuel))),
         param_space=SPACE,
         tune_config=tune.TuneConfig(metric="val_pinball", mode="min", num_samples=trials, max_concurrent_trials=5),
         run_config=train.RunConfig(storage_path=os.path.abspath(out), verbose=0))

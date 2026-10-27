@@ -55,6 +55,15 @@ class EstimatorTest(unittest.TestCase):
                 run(**kw)
             self.assertEqual(cm.exception.code, code)
 
+    def test_gpu_hours_budget_defaults_to_one_node(self):
+        r = run(job_type="gpu_hours", gpu_hours=64)
+        self.assertEqual((r["gpu_count"], r["duration_h"]["typ"]), (8, 8))
+
+    def test_warns_when_worst_case_misses_deadline(self):
+        r = run(job_type="gpu_hours", gpu_hours=800, gpu_count=8, deadline_utc="2026-10-24T12:00:00Z")  # 100 h of work, 12 h left
+        self.assertTrue(any("deadline" in w for w in r["warnings"]))
+        self.assertEqual(run(job_type="gpu_hours", gpu_hours=8, gpu_count=8)["warnings"], [])
+
     def test_flags_more_gpus_than_any_hub(self):
         r = run(job_type="gpu_hours", gpu_hours=1e7, gpu_count=1_000_000)
         self.assertTrue(any("any hub" in w for w in r["warnings"]))

@@ -1,8 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import hubGpus from '../../../../data/hub_gpus.json'
 import { HUBS } from '../../data/hubs'
+import { NODES } from '../map/nodes'
+import type { Move } from '../map/nodes'
 import { Badge } from '../dashboard/Badge'
 import { ChatError, sendChat } from './api'
+import { place } from './placement'
 
 interface Msg {
   who: 'user' | 'bot'
@@ -22,13 +26,30 @@ const EXAMPLES = [
   'LoRA fine-tune a 13B model on 50 million tokens in 3 days, Atlanta',
 ]
 
+const byId = Object.fromEntries(NODES.map((n) => [n.id, n]))
+
+// Decide where the job runs and tell the map to draw the arrow. Surplus here is the mock grid data, so the message says so.
+function placementNote(est: NonNullable<Awaited<ReturnType<typeof sendChat>>['estimate']>, homeId: string | null, onMove: (m: Move | null) => void) {
+  if (!homeId) {
+    onMove(null)
+    return 'Pick your location (or tell me where you are) and I will show where this job would run.'
+  }
+  const p = place(est, homeId, NODES, hubGpus.hubs)
+  const home = byId[homeId]
+  const dest = byId[p.dest]
+  onMove(p.kind === 'moved' ? { from: home, to: dest } : null)
+  const note = ' Based on mock surplus data. This is a preview, not a reservation.'
+  if (p.kind === 'home') return `Placement: runs at ${home.name}. ${home.grid} has ${Math.round(home.mw)} MW of surplus to cover it.${note}`
+  if (p.kind === 'moved') return `Placement: move the job from ${home.name} to ${dest.name} (${dest.grid}). ${home.name} has no surplus to cover it (${Math.round(home.mw)} MW); ${dest.name} has ${Math.round(dest.mw)} MW.${note}`
+  return `Placement: no hub has surplus and capacity to cover this job right now, so it would run at ${home.name} as normal load.${note}`
+}
+
 // FE10: right-hand chat with the job box. Numbers shown come from the estimator, never from the LLM.
-export function ChatPanel() {
+export function ChatPanel({ home, setHome, onMove }: { home: string; setHome: (id: string) => void; onMove: (m: Move | null) => void }) {
   const [open, setOpen] = useState(true)
   const [msgs, setMsgs] = useState<Msg[]>([HELLO])
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
-  const [home, setHome] = useState('')
   const [chips, setChips] = useState(EXAMPLES)
   const session = useRef(crypto.randomUUID())
   const end = useRef<HTMLDivElement>(null)
@@ -51,7 +72,9 @@ export function ChatPanel() {
     try {
       const r = await sendChat(session.current, t, home || null)
       if (r.home_hub) setHome(r.home_hub)
-      setMsgs((m) => [...m, { who: 'bot', text: r.reply, estimate: !!r.estimate, guarded: r.guarded }])
+      const extra = r.estimate ? placementNote(r.estimate, r.home_hub, onMove) : null
+      if (!r.estimate) onMove(null)
+      setMsgs((m) => [...m, { who: 'bot', text: r.reply, estimate: !!r.estimate, guarded: r.guarded }, ...(extra ? [{ who: 'bot' as const, text: extra }] : [])])
       setChips(r.suggestions)
     } catch (err) {
       const limited = err instanceof ChatError && err.status === 429
@@ -70,6 +93,7 @@ export function ChatPanel() {
 
   function reset() {
     session.current = crypto.randomUUID()
+    onMove(null)
     setMsgs([HELLO])
     setChips(EXAMPLES)
     setText('')

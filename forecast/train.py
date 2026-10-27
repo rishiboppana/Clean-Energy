@@ -8,13 +8,22 @@ import numpy as np
 import pandas as pd
 import xgboost as xgb
 
-from forecast.features import build, WX
+from forecast.features import build, WXF
 from forecast.split import seasonal_block_split
 from pipeline import store
 
-FEATURES = [f"{c}_{s}" for c in WX for s in ("m", "s")] + [
+FEATURES = [f"{c}_{s}" for c in WXF for s in ("m", "s")] + [
     "horizon", "lead_bucket", "hod_sin", "hod_cos", "doy_sin", "doy_cos", "dow", "holiday", "elev", "csi",
-    "last_share", "same_share", "mean24_share"]
+    "last_share", "same_share", "mean24_share", "ghi_prev", "ghi_next", "ghi_temp", "cs_ghi"]
+
+
+SOLAR_ONLY, WIND_ONLY = ("ghi_prev", "ghi_next", "ghi_temp", "cs_ghi"), ("wind3", "wpc")
+
+
+def feats(fuel, drop=()):
+    return [f for f in FEATURES if f not in drop and not (fuel == "SUN" and f.startswith(WIND_ONLY)) and not (fuel == "WND" and f in SOLAR_ONLY)]
+
+
 QUANTILES = np.array([0.1, 0.5, 0.9])
 PARAMS = {"objective": "reg:quantileerror", "quantile_alpha": QUANTILES, "tree_method": "hist", "max_depth": 6,
           "learning_rate": 0.05, "subsample": 0.8, "colsample_bytree": 0.8}
@@ -24,7 +33,7 @@ HOLDOUT_START, VAL_START, GAP = "2026-04-25", "2026-01-25", pd.Timedelta(days=2)
 
 
 def predict(bst, df):
-    p = np.sort(bst.predict(xgb.DMatrix(df[FEATURES]), iteration_range=(0, bst.best_iteration + 1)), axis=1)  # no quantile crossing
+    p = np.sort(bst.predict(xgb.DMatrix(df[bst.feature_names]), iteration_range=(0, bst.best_iteration + 1)), axis=1)  # no quantile crossing
     return np.clip(p, 0, 1.5)
 
 
@@ -74,10 +83,8 @@ def evaluate(df, mw, fuel):
 
 def prepare(grid, fuel, split="seasonal"):
     """-> (df, train, val, test). 'seasonal' mixes blocks across all seasons; 'time' is the forward-in-time split used first."""
-    cfg = json.load(open(os.path.join(store.ROOT, "data", "sample_points.json")))["grids"][grid]
-    lat = np.mean([p["lat"] for p in cfg["points"]])
-    lon = np.mean([p["lon"] for p in cfg["points"]])
-    df = build(grid, fuel, lat, lon)
+    points = json.load(open(os.path.join(store.ROOT, "data", "sample_points.json")))["grids"][grid][fuel]["points"]
+    df = build(grid, fuel, points)
     if split == "seasonal":
         sp = seasonal_block_split(df["issue"])
         return df, df[sp == "train"], df[sp == "val"], df[sp == "test"]
@@ -95,8 +102,9 @@ def run(grid, fuel, params=None, split="seasonal", data=None):
         params = json.load(open(os.path.join(store.ROOT, "data", "model_params.json"))).get(f"{grid}_{fuel}") if split == "final" else None
     params = {**PARAMS, **(params or {})}
     print(f"{grid} {fuel}: split={split} train {len(tr)} val {len(va)} test {len(te)} rows")
-    dtr = xgb.QuantileDMatrix(tr[FEATURES], tr["label"])
-    dva = xgb.QuantileDMatrix(va[FEATURES], va["label"], ref=dtr)
+    cols = feats(fuel)
+    dtr = xgb.QuantileDMatrix(tr[cols], tr["label"])
+    dva = xgb.QuantileDMatrix(va[cols], va["label"], ref=dtr)
     bst = xgb.train(params, dtr, 3000, evals=[(dva, "val")], early_stopping_rounds=50, verbose_eval=False)
     k = fit_widening(predict(bst, va), va, fuel)
     raw = evaluate(te, to_mw(predict(bst, te), te, fuel), fuel) if len(te) else []
@@ -109,7 +117,7 @@ def run(grid, fuel, params=None, split="seasonal", data=None):
     out = os.path.join(store.ROOT, "models", grid, fuel, version)
     os.makedirs(out)
     bst.save_model(os.path.join(out, "model.json"))
-    json.dump(FEATURES, open(os.path.join(out, "features.json"), "w"))
+    json.dump(cols, open(os.path.join(out, "features.json"), "w"))
     json.dump({k_: (v.tolist() if hasattr(v, "tolist") else v) for k_, v in params.items()}, open(os.path.join(out, "params.json"), "w"), indent=1)
     json.dump(metrics, open(os.path.join(out, "metrics.json"), "w"), indent=1)
     if cal:

@@ -27,7 +27,7 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       GRIDFLEX_DB_URL: postgresql://gridflex:gridflex@postgres:5432/gridflex
       PYTHONPATH: /opt/airflow
-      _PIP_ADDITIONAL_REQUIREMENTS: xgboost==2.1.4 holidays  # installed at container start, dev only
+      _PIP_ADDITIONAL_REQUIREMENTS: "numpy<2 xgboost==2.1.4 holidays"  # installed at container start, dev only
     ports: ["127.0.0.1:8080:8080"]
     volumes:
       - ./dags:/opt/airflow/dags:ro

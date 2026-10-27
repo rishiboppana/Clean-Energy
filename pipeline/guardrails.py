@@ -12,6 +12,9 @@ OUT_OF_SCOPE = re.compile(
     r"text[- ]to[- ](image|video)|midjourney|mixture[- ]of[- ]experts|\bmoe\b", re.I)
 JOB_WORDS = re.compile(
     r"train|fine-?tun|lora|pre-?train|inference|batch|gpu|cpu|model|token|param|server|request|deadline|hours?|job|compute|\d+\s*[bm]\b", re.I)
+# A bare greeting or thanks is on-topic: it goes to the agent, which greets back and asks for the job.
+GREETING = re.compile(r"^\s*((hi|hello|hey|hiya|howdy|yo|sup)( there)?|good (morning|afternoon|evening)|thanks?( you)?|thx|help|"
+                      r"what can you do|who are you|how does this work)\W*$", re.I)
 NOT_SURE = re.compile(r"^\s*(not sure|i don'?t know|dunno|no idea|idk|skip)\W*$", re.I)
 
 REFUSALS = {
@@ -44,7 +47,7 @@ def check(text, has_job):
         return REFUSALS["injection"]
     if OUT_OF_SCOPE.search(text):
         return REFUSALS["scope"]
-    if not has_job and not JOB_WORDS.search(text):
+    if not has_job and not JOB_WORDS.search(text) and not GREETING.match(text):
         return REFUSALS["off_topic"]
     return None
 

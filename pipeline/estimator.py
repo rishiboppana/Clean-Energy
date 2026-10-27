@@ -104,7 +104,8 @@ def estimate(job, now=None):
         g = GPUS[gpu_type]
         gpu_count = job.get("gpu_count")
         if gpu_count is None:
-            gpu_count = next(c for lim, c in GPU_COUNT_BY_PARAMS if (job.get("n_params") or 0) <= lim)
+            # no model size (e.g. a GPU-hours budget): one 8-GPU node, not 1 GPU, which would stretch the duration absurdly
+            gpu_count = next(c for lim, c in GPU_COUNT_BY_PARAMS if job["n_params"] <= lim) if job.get("n_params") else 8
             assumptions.append(f"gpu_count={gpu_count}")
         rate = lambda mfu: gpu_count * g["peak_flops"] * mfu * 3600  # FLOPs per hour
 
@@ -131,8 +132,11 @@ def estimate(job, now=None):
 
     # min energy = all-low corner, max = all-high corner (EE6)
     energy = _tmm(power["min"] * dur["min"], power["typ"] * dur["typ"], power["max"] * dur["max"])
+    hours_left = (deadline - (now or datetime.now(timezone.utc))).total_seconds() / 3600
+    if dur["max"] > hours_left:
+        warnings.append("in the worst case (max duration) this would not finish before the deadline")
     return {
-        "job_id": job.get("job_id"), "job_type": jt, "gpu_type": gpu_type, "gpu_count": gpu_count,
+        "hours_to_deadline": round(hours_left, 1), "job_id": job.get("job_id"), "job_type": jt, "gpu_type": gpu_type, "gpu_count": gpu_count,
         "duration_h": dur, "power_kw": power, "energy_kwh": energy,
         "interruptible": interruptible, "resume_overhead": RESUME_OVERHEAD_H if interruptible else 0,
         "deadline_utc": job["deadline_utc"], "allowed_grids": allowed, "data_gb": job.get("data_gb"),

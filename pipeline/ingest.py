@@ -37,7 +37,7 @@ def ingest_weather(grid_id, start, end):
     run = store.run_started("open-meteo", grid_id)
     try:
         written = 0
-        for p in cfg["grids"][grid_id]["points"]:
+        for p in [p for f in cfg["grids"][grid_id].values() for p in f["points"]]:
             for product in weather.PRODUCTS:
                 h = weather.extract(product, p["lat"], p["lon"], start, end, cfg["model"])
                 written += store.write_weather(weather.normalize(grid_id, p["id"], product, h))

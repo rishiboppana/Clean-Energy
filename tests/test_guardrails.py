@@ -12,6 +12,8 @@ class GuardrailsTest(unittest.TestCase):
 
     def test_off_topic_only_before_a_job_exists(self):
         self.assertEqual(g.check("hello, what's the weather?", False), g.REFUSALS["off_topic"])
+        for t in ("hi", "Hello!", "hey there", "good morning", "thanks", "what can you do?"):  # greetings reach the agent
+            self.assertIsNone(g.check(t, False), t)
         self.assertIsNone(g.check("hello", True))  # mid-job answers like "within 2 days" must pass
         self.assertIsNone(g.check("fine-tune a 7B model", False))
         self.assertIsNone(g.check("within 2 days", True))

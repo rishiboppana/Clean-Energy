@@ -8,7 +8,8 @@ from pipeline import store
 LAG_H = 24  # newest actual usable at issue time T is T-24h; refine per grid from the probe (FB6)
 HORIZONS = np.arange(1, 49)
 FUEL_METRIC = {"SUN": "gen_solar_mw", "WND": "gen_wind_mw"}
-WX = ["ghi", "dni", "cloud", "temp", "wind100"]  # wdir100 is stored but unused: a circular variable needs sin/cos, not worth it yet
+WX = ["ghi", "dni", "cloud", "temp", "wind100"]
+WXF = WX + ["wind3", "wpc"]  # per point, then averaged: wind3 = speed cubed; wpc = turbine power-curve proxy (cut-in 3 m/s, rated 12 m/s, cubic between)  # wdir100 is stored but unused: a circular variable needs sin/cos, not worth it yet
 PRODUCT_BY_BUCKET = ["historical_forecast", "previous_day1", "previous_day2"]  # horizons 1-12, 13-36, 37-48 (FB3)
 H = np.timedelta64(1, "h")
 
@@ -22,15 +23,42 @@ def load_y(grid, fuel):
     return pd.Series([r[1] for r in rows], index=idx).clip(lower=0)  # EIA solar dips slightly below 0 at night
 
 
-def load_wx(grid):
-    cols = ", ".join(f"avg({c}), coalesce(stddev_samp({c}), 0)" for c in WX)
-    names = [f"{c}_{s}" for c in WX for s in ("m", "s")]
+def aggregate_weather(df):
+    """df: one row per (product, ts, point) with weight `w` and the raw WX columns -> capacity-weighted mean and spread across points."""
+    df = df.assign(wind3=df["wind100"] ** 3, wpc=np.clip((df["wind100"] - 3) / 9, 0, 1) ** 3)
+    keys = [df["product"], df["ts"]]
+    sw = df.groupby(keys)["w"].transform("sum")
+    out = df[["product", "ts"]].copy()
+    for c in WXF:
+        wm = (df[c] * df["w"]).groupby(keys).transform("sum") / sw
+        out[f"{c}_m"] = wm
+        out[f"{c}_s"] = np.sqrt(((df[c] - wm) ** 2 * df["w"]).groupby(keys).transform("sum") / sw)
+    return out.drop_duplicates(["product", "ts"])
+
+
+def align(frame):
+    """Average each hour with the one before it. Open-Meteo stamps an hour by its end and EIA's stamp sits half an hour off, so the mean
+    of the two neighbours lines up best (SRP solar MAE 127.8 -> 124.4)."""
+    return (frame + frame.set_axis(frame.index + pd.Timedelta(hours=1)).reindex(frame.index)) / 2
+
+
+def load_wx(grid, points):
+    """-> ({product: hourly frame of weighted mean/spread columns}, column names) for a fuel's sample points (FM2, FB4)."""
+    weights = {p["id"]: p["weight"] for p in points}
+    names = [f"{c}_{s}" for c in WXF for s in ("m", "s")]
     with store.connect() as c, c.cursor() as cur:
-        cur.execute(f"SELECT product, valid_ts_utc, {cols} FROM weather WHERE grid_id=%s GROUP BY 1, 2", (grid,))
+        cur.execute(f"SELECT product, valid_ts_utc, point, {', '.join(WX)} FROM weather WHERE grid_id=%s AND point = ANY(%s)", (grid, list(weights)))
         rows = cur.fetchall()
-    df = pd.DataFrame(rows, columns=["product", "ts"] + names)
+    df = pd.DataFrame(rows, columns=["product", "ts", "point"] + WX)
     df["ts"] = pd.to_datetime(df["ts"], utc=True).dt.tz_localize(None)
-    return {p: g.set_index("ts")[names].astype(float) for p, g in df.groupby("product")}, names
+    df["w"] = df["point"].map(weights)
+    agg = aggregate_weather(df)
+    return {p: align(g.set_index("ts")[names].astype(float)) for p, g in agg.groupby("product")}, names
+
+
+def centroid(points):
+    w = np.array([p["weight"] for p in points])
+    return float(np.average([p["lat"] for p in points], weights=w)), float(np.average([p["lon"] for p in points], weights=w))
 
 
 def sun_elevation(times, lat, lon):
@@ -49,7 +77,8 @@ def sun_elevation(times, lat, lon):
 def series_context(y):
     """Hourly actuals plus the as-of-time helpers (trailing p98 cap, 24 h mean) the rows are built from."""
     full = y.reindex(pd.date_range(y.index.min(), y.index.max(), freq="H"))
-    return full, full.rolling(60 * 24, min_periods=30 * 24).quantile(0.98), full.rolling(24, min_periods=12).mean()  # cap: trailing 60 days (FB2)
+    # cap: trailing 30 days. Output grew ~20% a year and the sun's season moves the peak, so a short window tracks both (FB2 said 60; 30 scored better)
+    return full, full.rolling(30 * 24, min_periods=20 * 24).quantile(0.98), full.rolling(24, min_periods=12).mean()
 
 
 def rows(ctx, wx, wx_names, T, lat, lon, lag):
@@ -91,9 +120,19 @@ def rows(ctx, wx, wx_names, T, lat, lon, lag):
     hol = holidays.US(years=range(tt.year.min(), tt.year.max() + 1))
     ang_h, ang_d = 2 * np.pi * tt.hour.values / 24, 2 * np.pi * tt.dayofyear.values / 365.25
 
+    def ghi_at(shift):
+        out = np.full(len(h), np.nan)
+        for b, prod in enumerate(PRODUCT_BY_BUCKET):
+            m = bucket == b
+            if prod in wx:
+                out[m] = wx[prod]["ghi_m"].reindex(pd.DatetimeIndex(tgt[m]) + shift).values
+        return out
+
     df = pd.DataFrame(W, columns=wx_names)
     with np.errstate(all="ignore"):
         df = df.assign(
+            ghi_prev=ghi_at(-H), ghi_next=ghi_at(H), cs_ghi=cs,
+            ghi_temp=ghi * (1 - 0.004 * (W[:, wx_names.index("temp_m")] - 25)),  # panels lose ~0.4% per degree C above 25
             horizon=h, lead_bucket=bucket, hod_sin=np.sin(ang_h), hod_cos=np.cos(ang_h), doy_sin=np.sin(ang_d), doy_cos=np.cos(ang_d),
             dow=tt.dayofweek.values, holiday=[int(d.date() in hol) for d in tt], elev=elev, csi=csi,
             last_share=last / cap, same_share=same / cap, mean24_share=at(mean24, known) / cap,
@@ -102,9 +141,10 @@ def rows(ctx, wx, wx_names, T, lat, lon, lag):
     return df
 
 
-def build(grid, fuel, lat, lon, lag=LAG_H):
+def build(grid, fuel, points, lag=LAG_H):
     y = load_y(grid, fuel)
-    wx, wx_names = load_wx(grid)
+    lat, lon = centroid(points)
+    wx, wx_names = load_wx(grid, points)
     first = max(y.index.min(), min(w.index.min() for w in wx.values()))
     T = pd.date_range(first.ceil("6H"), y.index.max(), freq="6H")
     df = rows(series_context(y), wx, wx_names, T, lat, lon, lag)
