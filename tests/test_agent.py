@@ -3,7 +3,7 @@ import unittest
 
 try:
     from langchain_core.messages import AIMessage
-    from pipeline.agent import chat, make_agent
+    from pipeline.agent import chat, make_agent, notify_placement
 except ImportError:  # needs the Python 3.12 .venv-agent
     make_agent = None
 
@@ -14,6 +14,7 @@ class FakeModel:
         self.replies, self.said = list(replies), []
 
     def invoke(self, messages):
+        self.seen = messages
         if "GridFlex job assistant" in messages[0].content:  # a wording call, not extraction
             return AIMessage(self.said.pop(0) if self.said else "Sure thing.")
         return AIMessage(self.replies.pop(0))
@@ -41,6 +42,43 @@ class AgentTest(unittest.TestCase):
         m.said = ["Great, that will take 99 hours! What are the tokens?"]
         r = chat(make_agent(m), "a", "pretrain a 1B model")
         self.assertNotIn("99", r["reply"])  # falls back to the plain question
+
+    def test_model_gets_state_not_the_whole_transcript(self):
+        m = FakeModel(*[json.dumps({"job_type": "pretrain", "n_params": 1e9})] + ["{}"] * 8)
+        ag = make_agent(m)
+        chat(ag, "a", "pretrain a 1B model")
+        for i in range(6):
+            chat(ag, "a", f"hmm number {i}")
+        system, rest = m.seen[0].content, m.seen[1:]
+        self.assertIn("user set model size to 1B", system)  # an old event is still known
+        self.assertIn("Still missing: training tokens", system)
+        self.assertLessEqual(len(rest), 5)  # but only the last two turns arrive as raw messages
+
+    def _placed(self, home="dfw"):
+        ag = make_agent(FakeModel(json.dumps({"job_type": "pretrain", "n_params": 1e9, "tokens": 2e10, "deadline_utc": "2099-01-01T00:00:00Z"})))
+        chat(ag, "a", "pretrain a 1B model on 20B tokens by 2099-01-01", home=home)
+        return ag
+
+    def test_placement_away_from_home_asks_then_yes_deletes_the_chat(self):
+        ag = self._placed()
+        r = notify_placement(ag, "a", "chicago")
+        self.assertTrue(r["awaiting_end"] and "everything" in r["reply"])
+        out = chat(ag, "a", "yes")
+        self.assertTrue(out["ended"])
+        self.assertEqual(ag.get_state({"configurable": {"thread_id": "a"}}).values, {})  # conversation is gone
+
+    def test_placement_away_then_no_keeps_going(self):
+        ag = self._placed()
+        notify_placement(ag, "a", "chicago")
+        out = chat(ag, "a", "no")
+        self.assertFalse(out["ended"] or out["awaiting_end"])
+        self.assertTrue(out["job"])
+
+    def test_placement_at_home_does_not_ask(self):
+        ag = self._placed()
+        r = notify_placement(ag, "a", "dfw")
+        self.assertFalse(r["awaiting_end"])
+        self.assertFalse(chat(ag, "a", "yes")["ended"])
 
     def test_sessions_are_separate(self):
         ag = make_agent(FakeModel(json.dumps({"job_type": "pretrain", "n_params": 1e9, "tokens": 2e10}), "{}"))

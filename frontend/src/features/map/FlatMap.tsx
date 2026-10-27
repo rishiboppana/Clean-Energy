@@ -25,7 +25,7 @@ export function FlatMap({ selectedId, onSelect, move }: { selectedId: string | n
   return (
     <svg className="map" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="US map of modeled data center hubs" onClick={() => onSelect(null)}>
       <defs>
-        <marker id="arrowhead" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+        <marker id="arrowhead" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
           <path d="M0,0 L10,5 L0,10 z" fill="var(--arc)" />
         </marker>
       </defs>

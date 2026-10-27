@@ -14,14 +14,11 @@ from pipeline import store
 
 FEATURES = [f"{c}_{s}" for c in WXF for s in ("m", "s")] + [
     "horizon", "lead_bucket", "hod_sin", "hod_cos", "doy_sin", "doy_cos", "dow", "holiday", "elev", "csi",
-    "last_share", "same_share", "mean24_share", "ghi_prev", "ghi_next", "ghi_temp", "cs_ghi"]
-
-
-SOLAR_ONLY, WIND_ONLY = ("ghi_prev", "ghi_next", "ghi_temp", "cs_ghi"), ("wind3", "wpc")
+    "last_share", "same_share", "mean24_share"]
 
 
 def feats(fuel, drop=()):
-    return [f for f in FEATURES if f not in drop and not (fuel == "SUN" and f.startswith(WIND_ONLY)) and not (fuel == "WND" and f in SOLAR_ONLY)]
+    return [f for f in FEATURES if f not in drop and not (fuel == "SUN" and f.startswith("wind3"))]  # cubed wind only helps wind models
 
 
 QUANTILES = np.array([0.1, 0.5, 0.9])

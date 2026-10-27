@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import hubGpus from '../../../../data/hub_gpus.json'
 import { HUBS } from '../../data/hubs'
 import { NODES } from '../map/nodes'
 import type { Move } from '../map/nodes'
 import { Badge } from '../dashboard/Badge'
-import { ChatError, sendChat } from './api'
-import { place } from './placement'
+import { ChatError, notifyPlacement, previewJob, sendChat } from './api'
+import type { Preview } from './api'
 
 interface Msg {
   who: 'user' | 'bot'
@@ -28,20 +27,26 @@ const EXAMPLES = [
 
 const byId = Object.fromEntries(NODES.map((n) => [n.id, n]))
 
-// Decide where the job runs and tell the map to draw the arrow. Surplus here is the mock grid data, so the message says so.
-function placementNote(est: NonNullable<Awaited<ReturnType<typeof sendChat>>['estimate']>, homeId: string | null, onMove: (m: Move | null) => void) {
-  if (!homeId) {
-    onMove(null)
-    return 'Pick your location (or tell me where you are) and I will show where this job would run.'
+const when = (iso: string) => {
+  const d = new Date(iso)
+  return `${d.toLocaleString([], { weekday: 'short', hour: 'numeric', minute: '2-digit', timeZoneName: 'short' })} (${d.toISOString().slice(0, 16).replace('T', ' ')} UTC)`
+}
+
+// Ask the scheduler where the job runs, tell the map to draw the arrow, and say why in plain words. Everything here comes from the
+// scheduler's verdict; surplus is simulated until the surplus rule exists, and the message says so.
+function describe(p: Preview, home: string) {
+  const note = ' Surplus is simulated. This is a preview, not a reservation.'
+  const s = p.best_slot
+  if (p.verdict === 'covered' && s) {
+    const dest = byId[s.hub]
+    const mwh = `${s.absorbed_mwh.typ.toFixed(3)} MWh (range ${s.absorbed_mwh.min.toFixed(3)} to ${s.absorbed_mwh.max.toFixed(3)})`
+    const where = s.moved ? `move the job from ${home} to ${dest.name} (${s.grid})` : `run at ${home} (${s.grid})`
+    return `Scheduler: ${where}, ${when(s.start_utc)} to ${when(s.end_utc)}. Surplus alone powers it, absorbing about ${mwh}.${note}`
   }
-  const p = place(est, homeId, NODES, hubGpus.hubs)
-  const home = byId[homeId]
-  const dest = byId[p.dest]
-  onMove(p.kind === 'moved' ? { from: home, to: dest } : null)
-  const note = ' Based on mock surplus data. This is a preview, not a reservation.'
-  if (p.kind === 'home') return `Placement: runs at ${home.name}. ${home.grid} has ${Math.round(home.mw)} MW of surplus to cover it.${note}`
-  if (p.kind === 'moved') return `Placement: move the job from ${home.name} to ${dest.name} (${dest.grid}). ${home.name} has no surplus to cover it (${Math.round(home.mw)} MW); ${dest.name} has ${Math.round(dest.mw)} MW.${note}`
-  return `Placement: no hub has surplus and capacity to cover this job right now, so it would run at ${home.name} as normal load.${note}`
+  if (p.verdict === 'held') return `Scheduler: no surplus window right now. It is held and re-checked each hour; latest start is ${when(p.latest_start_utc!)}.${note}`
+  if (p.verdict === 'infeasible') return `Scheduler: this job cannot finish by the deadline even at ${home}. Try a later deadline.`
+  if (p.verdict === 'data_unavailable') return `Scheduler: the surplus forecast is missing, so it would run at ${home} as normal load.${note}`
+  return `Scheduler: no surplus window covers this job, so it runs at ${home} as normal load.${note}`
 }
 
 // FE10: right-hand chat with the job box. Numbers shown come from the estimator, never from the LLM.
@@ -71,11 +76,18 @@ export function ChatPanel({ home, setHome, onMove }: { home: string; setHome: (i
     setMsgs((m) => [...m, { who: 'user', text: t }])
     try {
       const r = await sendChat(session.current, t, home || null)
+      if (r.ended) { // the server deleted the conversation: wipe it here too and start a fresh session
+        session.current = crypto.randomUUID()
+        onMove(null)
+        setMsgs([{ who: 'bot', text: r.reply }, HELLO])
+        setChips(EXAMPLES)
+        return
+      }
       if (r.home_hub) setHome(r.home_hub)
-      const extra = r.estimate ? placementNote(r.estimate, r.home_hub, onMove) : null
-      if (!r.estimate) onMove(null)
-      setMsgs((m) => [...m, { who: 'bot', text: r.reply, estimate: !!r.estimate, guarded: r.guarded }, ...(extra ? [{ who: 'bot' as const, text: extra }] : [])])
+      setMsgs((m) => [...m, { who: 'bot', text: r.reply, estimate: !!r.estimate, guarded: r.guarded }])
       setChips(r.suggestions)
+      if (r.estimate) await schedule(r.job, r.home_hub)
+      else onMove(null)
     } catch (err) {
       const limited = err instanceof ChatError && err.status === 429
       setMsgs((m) => [...m, {
@@ -88,6 +100,29 @@ export function ChatPanel({ home, setHome, onMove }: { home: string; setHome: (i
       setChips([])
     } finally {
       setBusy(false)
+    }
+  }
+
+  const say = (text: string) => setMsgs((m) => [...m, { who: 'bot', text }])
+
+  async function schedule(job: Record<string, unknown>, homeId: string | null) {
+    if (!homeId) {
+      onMove(null)
+      say('Pick your location (or tell me where you are) and I will ask the scheduler where this job would run.')
+      return
+    }
+    try {
+      const p = await previewJob(job, homeId)
+      const slot = p.best_slot
+      onMove(p.verdict === 'covered' && slot?.moved ? { from: byId[homeId], to: byId[slot.hub] } : null)
+      say(describe(p, byId[homeId].name))
+      if (p.verdict === 'covered' && slot) {
+        const n = await notifyPlacement(session.current, slot.hub) // away from home the agent asks "is that everything?"
+        if (n.awaiting_end) say(n.reply)
+      }
+    } catch {
+      onMove(null)
+      say('I could not reach the scheduler just now. The estimate above still stands.')
     }
   }
 

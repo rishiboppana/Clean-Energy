@@ -9,7 +9,7 @@ LAG_H = 24  # newest actual usable at issue time T is T-24h; refine per grid fro
 HORIZONS = np.arange(1, 49)
 FUEL_METRIC = {"SUN": "gen_solar_mw", "WND": "gen_wind_mw"}
 WX = ["ghi", "dni", "cloud", "temp", "wind100"]
-WXF = WX + ["wind3", "wpc"]  # per point, then averaged: wind3 = speed cubed; wpc = turbine power-curve proxy (cut-in 3 m/s, rated 12 m/s, cubic between)  # wdir100 is stored but unused: a circular variable needs sin/cos, not worth it yet
+WXF = WX + ["wind3"]  # wind3 = wind speed cubed per point (turbine power scales with it), averaged after cubing  # wdir100 is stored but unused: a circular variable needs sin/cos, not worth it yet
 PRODUCT_BY_BUCKET = ["historical_forecast", "previous_day1", "previous_day2"]  # horizons 1-12, 13-36, 37-48 (FB3)
 H = np.timedelta64(1, "h")
 
@@ -25,7 +25,7 @@ def load_y(grid, fuel):
 
 def aggregate_weather(df):
     """df: one row per (product, ts, point) with weight `w` and the raw WX columns -> capacity-weighted mean and spread across points."""
-    df = df.assign(wind3=df["wind100"] ** 3, wpc=np.clip((df["wind100"] - 3) / 9, 0, 1) ** 3)
+    df = df.assign(wind3=df["wind100"] ** 3)
     keys = [df["product"], df["ts"]]
     sw = df.groupby(keys)["w"].transform("sum")
     out = df[["product", "ts"]].copy()
@@ -120,19 +120,10 @@ def rows(ctx, wx, wx_names, T, lat, lon, lag):
     hol = holidays.US(years=range(tt.year.min(), tt.year.max() + 1))
     ang_h, ang_d = 2 * np.pi * tt.hour.values / 24, 2 * np.pi * tt.dayofyear.values / 365.25
 
-    def ghi_at(shift):
-        out = np.full(len(h), np.nan)
-        for b, prod in enumerate(PRODUCT_BY_BUCKET):
-            m = bucket == b
-            if prod in wx:
-                out[m] = wx[prod]["ghi_m"].reindex(pd.DatetimeIndex(tgt[m]) + shift).values
-        return out
-
     df = pd.DataFrame(W, columns=wx_names)
     with np.errstate(all="ignore"):
         df = df.assign(
-            ghi_prev=ghi_at(-H), ghi_next=ghi_at(H), cs_ghi=cs,
-            ghi_temp=ghi * (1 - 0.004 * (W[:, wx_names.index("temp_m")] - 25)),  # panels lose ~0.4% per degree C above 25
+
             horizon=h, lead_bucket=bucket, hod_sin=np.sin(ang_h), hod_cos=np.cos(ang_h), doy_sin=np.sin(ang_d), doy_cos=np.cos(ang_d),
             dow=tt.dayofweek.values, holiday=[int(d.date() in hol) for d in tt], elev=elev, csi=csi,
             last_share=last / cap, same_share=same / cap, mean24_share=at(mean24, known) / cap,

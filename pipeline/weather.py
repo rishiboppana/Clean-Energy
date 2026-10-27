@@ -39,8 +39,8 @@ LIVE = "https://api.open-meteo.com/v1/forecast"
 
 
 def extract_live(lat, lon, model):
-    """The current forecast for the next 72 h at one point, in the same columns as `extract`."""
-    params = {"latitude": lat, "longitude": lon, "forecast_days": 3, "timezone": "UTC", "wind_speed_unit": "ms",
+    """The current forecast at one point, from 2 days back (the delayed-live clock needs hours before today) through 72 h ahead, in the same columns as `extract`."""
+    params = {"latitude": lat, "longitude": lon, "past_days": 2, "forecast_days": 3, "timezone": "UTC", "wind_speed_unit": "ms",
               "models": model, "hourly": ",".join(VARS)}
     try:
         r = requests.get(LIVE, params=params, timeout=60)

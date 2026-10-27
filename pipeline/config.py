@@ -1,4 +1,15 @@
 """Mappings from source codes to our fixed metric list (DS4)."""
+import os
+from datetime import datetime, timedelta, timezone
+
+# Delayed-live demo clock: the app's "now" runs this many hours behind real time, so every grid has actuals up to "now"
+# (EIA fuel mix is 18-22 h late). Everything that asks "what time is it" must call app_now(), never datetime.now().
+APP_LAG_HOURS = int(os.environ.get("APP_LAG_HOURS", 24))
+
+
+def app_now():
+    return datetime.now(timezone.utc) - timedelta(hours=APP_LAG_HOURS)
+
 
 # EIA region-data `type` facet
 EIA_REGION_METRICS = {"D": "demand_mw", "DF": "demand_forecast_mw", "TI": "interchange_mw"}
